@@ -9,6 +9,9 @@ enum SearchFilter {
   song,
   artist,
   album,
+  playlist,
+  room,
+  user,
 }
 
 class SearchRepository {

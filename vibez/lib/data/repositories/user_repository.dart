@@ -124,4 +124,35 @@ class UserRepository {
       return false;
     }
   }
+
+  Future<User?> getUser(String id) async {
+    try {
+      final res = await _userService.getUser(id);
+      return User.fromJson(res);
+    } on DioException catch (err) {
+      String errorMessage = DioExceptionHandler.getMessage(err);
+      AppLogger.instance.error(errorMessage, error: err);
+      return null;
+    }
+  }
+
+  Future<bool> followUser(String id) async {
+    try {
+      final res = await _userService.followUser(id);
+      return res['success'] == true;
+    } catch (err) {
+      AppSnackbar.show(message: "Something went wrong.", type: AppSnackType.error);
+      return false;
+    }
+  }
+
+  Future<bool> unfollowUser(String id) async {
+    try {
+      final res = await _userService.unfollowUser(id);
+      return res['success'] == true;
+    } catch (err) {
+      AppSnackbar.show(message: "Something went wrong.", type: AppSnackType.error);
+      return false;
+    }
+  }
 }

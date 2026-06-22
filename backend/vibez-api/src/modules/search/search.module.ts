@@ -2,11 +2,15 @@ import { Module } from '@nestjs/common';
 import { SearchService } from './search.service';
 import { SearchController } from './search.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import path from 'path';
-import { cwd } from 'process';
+import { Room } from '../rooms/entities/room.entity';
+import { Playlist } from '../users/entities/playlist.entity';
+import { User } from '../users/entities/user.entity';
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([Room, Playlist, User]),
     ClientsModule.register([
       {
         name: 'SEARCH_PACKAGE',

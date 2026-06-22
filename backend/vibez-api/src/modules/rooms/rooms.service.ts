@@ -2,7 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import { Room } from './entities/room.entity';
 import { User } from '../users/entities/user.entity';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { UpdateRoomDto } from './dto/update-room.dto';
 
 @Injectable()
@@ -14,11 +14,23 @@ export class RoomsService {
     private readonly userRepo: Repository<User>,
   ) {}
 
-  async get() {
+  async get(query?: string, limit?: number) {
+    if (!query) {
+      return await this.roomRepo.find({
+        where: {
+          private: false,
+        },
+        take: limit,
+      });
+    }
     return await this.roomRepo.find({
       where: {
-        private: false
-      }
+        private: false,
+        name: ILike(`%${query}%`),
+        description: ILike(`%${query}%`),
+        tags: ILike(`%${query}%`),
+      },
+      take: limit,
     });
   }
 

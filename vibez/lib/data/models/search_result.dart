@@ -106,15 +106,125 @@ class SearchAlbum {
   }
 }
 
+class SearchPlaylist {
+  final String id;
+  final String name;
+  final String? description;
+  final String? thumbnail;
+  final List<String> tags;
+
+  const SearchPlaylist({
+    required this.id,
+    required this.name,
+    this.description,
+    this.thumbnail,
+    this.tags = const [],
+  });
+
+  factory SearchPlaylist.fromJson(Map<String, dynamic> json) {
+    return SearchPlaylist(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      description: json['description'] as String?,
+      thumbnail: json['thumbnail'] as String?,
+      tags: json['tags'] != null ? List<String>.from(json['tags'] as List) : [],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      if (description != null) 'description': description,
+      if (thumbnail != null) 'thumbnail': thumbnail,
+      'tags': tags,
+    };
+  }
+}
+
+class SearchRoom {
+  final String id;
+  final String name;
+  final String description;
+  final List<String> tags;
+  final bool playing;
+
+  const SearchRoom({
+    required this.id,
+    required this.name,
+    required this.description,
+    this.tags = const [],
+    this.playing = false,
+  });
+
+  factory SearchRoom.fromJson(Map<String, dynamic> json) {
+    return SearchRoom(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      tags: json['tags'] != null ? List<String>.from(json['tags'] as List) : [],
+      playing: json['playing'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'tags': tags,
+      'playing': playing,
+    };
+  }
+}
+
+class SearchUser {
+  final String id;
+  final String name;
+  final String? username;
+  final String? profileUrl;
+
+  const SearchUser({
+    required this.id,
+    required this.name,
+    this.username,
+    this.profileUrl,
+  });
+
+  factory SearchUser.fromJson(Map<String, dynamic> json) {
+    return SearchUser(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      username: json['username'] as String?,
+      profileUrl: json['profileUrl'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      if (username != null) 'username': username,
+      if (profileUrl != null) 'profileUrl': profileUrl,
+    };
+  }
+}
+
 class SearchResult {
   final List<SearchSong> songs;
   final List<SearchArtist> artists;
   final List<SearchAlbum> albums;
+  final List<SearchPlaylist> playlists;
+  final List<SearchRoom> rooms;
+  final List<SearchUser> users;
 
   const SearchResult({
     required this.songs,
     required this.artists,
     required this.albums,
+    this.playlists = const [],
+    this.rooms = const [],
+    this.users = const [],
   });
 
   factory SearchResult.fromJson(Map<String, dynamic> json) {
@@ -134,6 +244,21 @@ class SearchResult {
               .map((e) => SearchAlbum.fromJson(e as Map<String, dynamic>))
               .toList()
           : [],
+      playlists: json['playlists'] != null
+          ? (json['playlists'] as List)
+              .map((e) => SearchPlaylist.fromJson(e as Map<String, dynamic>))
+              .toList()
+          : [],
+      rooms: json['rooms'] != null
+          ? (json['rooms'] as List)
+              .map((e) => SearchRoom.fromJson(e as Map<String, dynamic>))
+              .toList()
+          : [],
+      users: json['users'] != null
+          ? (json['users'] as List)
+              .map((e) => SearchUser.fromJson(e as Map<String, dynamic>))
+              .toList()
+          : [],
     );
   }
 
@@ -142,6 +267,17 @@ class SearchResult {
       'songs': songs.map((e) => e.toJson()).toList(),
       'artists': artists.map((e) => e.toJson()).toList(),
       'albums': albums.map((e) => e.toJson()).toList(),
+      'playlists': playlists.map((e) => e.toJson()).toList(),
+      'rooms': rooms.map((e) => e.toJson()).toList(),
+      'users': users.map((e) => e.toJson()).toList(),
     };
   }
+
+  int get totalCount =>
+      songs.length +
+      artists.length +
+      albums.length +
+      playlists.length +
+      rooms.length +
+      users.length;
 }

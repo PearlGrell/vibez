@@ -12,6 +12,7 @@ export 'package:vibez/presentation/artist/artist_albums_screen.dart';
 export 'package:vibez/presentation/playlist/playlist_add_screen.dart';
 export 'package:vibez/presentation/playlist/playlist_add_song_screen.dart';
 export 'package:vibez/presentation/profile/edit_profile_screen.dart';
+export 'package:vibez/presentation/profile/user_profile_screen.dart';
 
 
 class RouteLocation {
@@ -30,6 +31,7 @@ class RouteLocation {
   static const String playlistAdd = '/playlist-add';
   static const String playlistAddSong = '/search-add-song';
   static const String editProfile = '/edit-profile';
+  static const String userProfile = '/user/:id';
 }
 
 class RouteName {
@@ -48,6 +50,7 @@ class RouteName {
   static const String playlistAdd = 'playlist-add';
   static const String playlistAddSong = 'playlist-add-song';
   static const String editProfile = 'edit-profile';
+  static const String userProfile = 'user-profile';
 }
 
 

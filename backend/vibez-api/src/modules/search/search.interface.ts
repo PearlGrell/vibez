@@ -7,6 +7,16 @@ export enum Filter {
   ALBUM = 3,
 }
 
+export enum SearchType {
+  ALL = 'all',
+  SONG = 'song',
+  ARTIST = 'artist',
+  ALBUM = 'album',
+  PLAYLIST = 'playlist',
+  ROOM = 'room',
+  USER = 'user',
+}
+
 export interface SearchRequest {
   query: string;
   filter: Filter;
@@ -46,4 +56,3 @@ export interface SearchResult {
 export interface SearchGrpcService {
   Search(data: SearchRequest): Observable<SearchResult>;
 }
-

@@ -24,10 +24,16 @@ export class UsersController {
   }
 
   @Get()
-  findAll(@Query('username') username?: string, @Query('page') page?: string, @Query('limit') limit?: string) {
+  @UseGuards(AuthGuard)
+  findAll(
+    @CurrentUser() user: UserPayload,
+    @Query('username') username?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
-    return this.usersService.findAll(username, pageNum, limitNum);
+    return this.usersService.findAll(user.sub, username, pageNum, limitNum);
   }
 
   @Post(':id/follow')

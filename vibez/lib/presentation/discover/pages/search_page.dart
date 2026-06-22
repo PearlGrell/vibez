@@ -17,8 +17,11 @@ import 'package:vibez/presentation/common/song_options_bottom_sheet.dart';
 import 'package:vibez/presentation/discover/widgets/album_tile.dart';
 import 'package:vibez/presentation/discover/widgets/artist_tile.dart';
 import 'package:vibez/presentation/discover/widgets/filter_tab.dart';
+import 'package:vibez/presentation/discover/widgets/playlist_tile.dart';
+import 'package:vibez/presentation/discover/widgets/room_tile.dart';
 import 'package:vibez/presentation/discover/widgets/search_skeleton.dart';
 import 'package:vibez/presentation/discover/widgets/song_tile.dart';
+import 'package:vibez/presentation/discover/widgets/user_tile.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -64,14 +67,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     );
   }
 
-  // ── Filter Chips ─────────────────────────────────────────────────────────
-
   Widget _buildFilterChips(BuildContext context, SearchState state) {
     final tabs = <FilterTab>[
       FilterTab(filter: SearchFilter.all, label: 'All'),
       FilterTab(filter: SearchFilter.song, label: 'Songs'),
       FilterTab(filter: SearchFilter.artist, label: 'Artists'),
       FilterTab(filter: SearchFilter.album, label: 'Albums'),
+      FilterTab(filter: SearchFilter.playlist, label: 'Playlists'),
+      FilterTab(filter: SearchFilter.room, label: 'Rooms'),
+      FilterTab(filter: SearchFilter.user, label: 'Users'),
     ];
 
     return SingleChildScrollView(
@@ -114,8 +118,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     );
   }
 
-  // ── Content Router ───────────────────────────────────────────────────────
-
   Widget _buildContent(BuildContext context, SearchState state) {
     if (state.isLoading) return const SearchSkeleton();
 
@@ -126,10 +128,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final songs = state.result?.songs ?? const [];
     final artists = state.result?.artists ?? const [];
     final albums = state.result?.albums ?? const [];
+    final playlists = state.result?.playlists ?? const [];
+    final rooms = state.result?.rooms ?? const [];
+    final users = state.result?.users ?? const [];
 
     switch (state.filter) {
       case SearchFilter.all:
-        return _buildAllView(context, songs, artists, albums, state);
+        return _buildAllView(
+            context, songs, artists, albums, playlists, rooms, users, state);
       case SearchFilter.song:
         return _buildFilteredList(
           context,
@@ -172,23 +178,62 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             onTap: () => context.push('/album/${album.id}'),
           ),
         );
+      case SearchFilter.playlist:
+        return _buildFilteredList(
+          context,
+          state,
+          items: playlists,
+          emptyLabel: 'No playlists found',
+          builder: (playlist) => PlaylistTile(
+            playlist: playlist,
+            onTap: () => context.push('/playlist/${playlist.id}'),
+          ),
+        );
+      case SearchFilter.room:
+        return _buildFilteredList(
+          context,
+          state,
+          items: rooms,
+          emptyLabel: 'No rooms found',
+          builder: (room) => RoomTile(
+            room: room,
+            onTap: () {}, // TODO: add room detail route
+          ),
+        );
+      case SearchFilter.user:
+        return _buildFilteredList(
+          context,
+          state,
+          items: users,
+          emptyLabel: 'No users found',
+          builder: (user) => UserTile(
+            user: user,
+            onTap: () => context.push('/user/${user.id}'),
+          ),
+        );
     }
   }
-
-  // ── "All" Mixed View ─────────────────────────────────────────────────────
 
   Widget _buildAllView(
     BuildContext context,
     List<SearchSong> songs,
     List<SearchArtist> artists,
     List<SearchAlbum> albums,
+    List<SearchPlaylist> playlists,
+    List<SearchRoom> rooms,
+    List<SearchUser> users,
     SearchState state,
   ) {
-    if (songs.isEmpty && artists.isEmpty && albums.isEmpty) {
+    if (songs.isEmpty &&
+        artists.isEmpty &&
+        albums.isEmpty &&
+        playlists.isEmpty &&
+        rooms.isEmpty &&
+        users.isEmpty) {
       return _buildEmpty('No results found');
     }
 
-    final mixed = _interleave(songs, artists, albums);
+    final mixed = _interleave(songs, artists, albums, playlists, rooms, users);
     final currentSongId = ref.watch(playbackProvider).currentSong?.id;
     final userState = ref.watch(userProvider);
 
@@ -223,6 +268,21 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             album: item,
             onTap: () => context.push('/album/${item.id}'),
           );
+        } else if (item is SearchPlaylist) {
+          return PlaylistTile(
+            playlist: item,
+            onTap: () => context.push('/playlist/${item.id}'),
+          );
+        } else if (item is SearchRoom) {
+          return RoomTile(
+            room: item,
+            onTap: () {},
+          );
+        } else if (item is SearchUser) {
+          return UserTile(
+            user: item,
+            onTap: () => context.push('/user/${item.id}'),
+          );
         }
         return const SizedBox.shrink();
       },
@@ -233,16 +293,27 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     List<SearchSong> songs,
     List<SearchArtist> artists,
     List<SearchAlbum> albums,
+    List<SearchPlaylist> playlists,
+    List<SearchRoom> rooms,
+    List<SearchUser> users,
   ) {
     final items = <Object>[];
-    int si = 0, ai = 0, bi = 0;
+    int si = 0, ai = 0, bi = 0, pi = 0, ri = 0, ui = 0;
 
-    while (si < songs.length || ai < artists.length || bi < albums.length) {
+    while (si < songs.length ||
+        ai < artists.length ||
+        bi < albums.length ||
+        pi < playlists.length ||
+        ri < rooms.length ||
+        ui < users.length) {
       for (int i = 0; i < 3 && si < songs.length; i++, si++) {
         items.add(songs[si]);
       }
       if (ai < artists.length) {
         items.add(artists[ai++]);
+      }
+      if (pi < playlists.length) {
+        items.add(playlists[pi++]);
       }
       for (int i = 0; i < 2 && si < songs.length; i++, si++) {
         items.add(songs[si]);
@@ -250,12 +321,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       if (bi < albums.length) {
         items.add(albums[bi++]);
       }
+      if (ri < rooms.length) {
+        items.add(rooms[ri++]);
+      }
+      if (ui < users.length) {
+        items.add(users[ui++]);
+      }
     }
 
     return items;
   }
-
-  // ── Generic Filtered List ────────────────────────────────────────────────
 
   Widget _buildFilteredList<T>(
     BuildContext context,
@@ -276,8 +351,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       },
     );
   }
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
 
   void _playSong(SearchSong song) {
     ref

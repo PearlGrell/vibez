@@ -78,4 +78,22 @@ class UserService {
       secure: true,
     );
   }
+
+  Future<Map<String, dynamic>> getUser(String id) {
+    return _apiClient.get(endpoint: '/users/$id');
+  }
+
+  Future<Map<String, dynamic>> followUser(String id) {
+    return _apiClient.post(
+      endpoint: '/users/$id/follow',
+      secure: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> unfollowUser(String id) {
+    return _apiClient.post(
+      endpoint: '/users/$id/unfollow',
+      secure: true,
+    );
+  }
 }

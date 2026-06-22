@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards, UsePipes } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards, UsePipes } from '@nestjs/common';
 import { PlaylistsService } from './playlists.service';
 import { AuthGuard } from '../../auth/guards/auth.guard';
 import { ZodPipe } from 'src/common/pipes/zod/zod.pipe';
@@ -22,6 +22,12 @@ export class PlaylistsController {
   @UsePipes(new ZodPipe(updatePlaylistSchema))
   update(@CurrentUser() user: UserPayload, @Body() body: UpdatePlaylistDto, @Param('id') id: string) {
     return this.playlistsService.update(user.sub, id, body.name, body.private, body.tags, body.thumbnail, body.description);
+  }
+
+  @Get()
+  getPlaylists(@CurrentUser() user: UserPayload, @Query('q') query: string, @Query('limit') limit?: string) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 20;
+    return this.playlistsService.getPlaylists(query, parsedLimit);
   }
 
   @Get(':id')

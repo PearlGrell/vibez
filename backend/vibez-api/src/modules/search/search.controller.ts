@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { SearchService } from './search.service';
-import { Filter } from './search.interface';
+import { SearchType } from './search.interface';
 
 @Controller('search')
 export class SearchController {
@@ -12,18 +12,17 @@ export class SearchController {
     @Query('filter') filter?: string,
     @Query('limit') limit?: string,
   ) {
-    let filterEnum = Filter.ALL;
-    if (filter) {
-      const upper = filter.toUpperCase();
-      if (upper === 'SONG') {
-        filterEnum = Filter.SONG;
-      } else if (upper === 'ARTIST') {
-        filterEnum = Filter.ARTIST;
-      } else if (upper === 'ALBUM') {
-        filterEnum = Filter.ALBUM;
-      }
-    }
+    const type = this.parseSearchType(filter);
     const parsedLimit = limit ? parseInt(limit, 10) : 20;
-    return this.searchService.search(query, filterEnum, parsedLimit);
+    return this.searchService.search(query, type, parsedLimit);
+  }
+
+  private parseSearchType(filter?: string): SearchType {
+    if (!filter) return SearchType.ALL;
+    const value = filter.toLowerCase();
+    if (Object.values(SearchType).includes(value as SearchType)) {
+      return value as SearchType;
+    }
+    return SearchType.ALL;
   }
 }

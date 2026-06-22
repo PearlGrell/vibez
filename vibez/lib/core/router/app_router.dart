@@ -129,6 +129,14 @@ class AppRouter {
               name: RouteName.editProfile,
               builder: (context, state) => const EditProfileScreen(),
             ),
+            GoRoute(
+              path: RouteLocation.userProfile,
+              name: RouteName.userProfile,
+              builder: (context, state) {
+                final id = state.pathParameters['id']!;
+                return UserProfileScreen(userId: id);
+              },
+            ),
           ],
         ),
       ],

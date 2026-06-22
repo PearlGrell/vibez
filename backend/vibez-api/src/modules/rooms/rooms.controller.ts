@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, UsePipes } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, UsePipes } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { ZodPipe } from 'src/common/pipes/zod/zod.pipe';
 import { type CreateRoomDto, createRoomSchema } from './dto/createRoom.dto';
@@ -11,8 +11,9 @@ export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
   @Get()
-  async get() {
-    return await this.roomsService.get();
+  async get(@Query('q') query?: string, @Query('limit') limit?: string) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 20;
+    return await this.roomsService.get(query, parsedLimit);
   }
 
   @Get('me')
