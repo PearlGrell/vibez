@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vibez API Reference & Explorer</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22url(%23g)%22/><defs><linearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22><stop offset=%220%25%22 stop-color=%22%238b5cf6%22/><stop offset=%22100%25%22 stop-color=%22%236366f1%22/></linearGradient></defs><text y=%22.9em%22 font-size=%2290%22 font-family=%22sans-serif%22 font-weight=%22bold%22 fill=%22white%22 x=%2210%22>V</text></svg>">
+</head>
+<body>
+
+  <!-- Mobile Header -->
+  <header class="mobile-header">
+    <div class="brand-section" style="padding: 0; border: none;">
+      <div class="logo-icon">V</div>
+      <span class="brand-name">Vibez API Docs</span>
+    </div>
+    <button class="hamburger" id="hamburger-toggle">☰</button>
+  </header>
+
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-section">
+        <div class="logo-icon">V</div>
+        <span class="brand-name">Vibez API Docs</span>
+      </div>
+      <div class="search-container">
+        <input type="text" class="search-input" id="search" placeholder="Search endpoints...">
+      </div>
+      <nav class="nav-menu" id="nav-groups">
+        <!-- Dynamically rendered navigation groups -->
+        <div style="text-align: center; padding: 20px; color: var(--text-muted);">Loading navigation...</div>
+      </nav>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+      <!-- Endpoint Documentation Section -->
+      <main class="doc-section" id="endpoints-container">
+        <!-- Dynamically rendered endpoint cards -->
+        <div style="text-align: center; padding: 100px 0;">
+          <h2 style="margin-bottom: 12px; color: var(--text-primary);">Vibez API Documentation</h2>
+          <p style="color: var(--text-secondary);">Select an endpoint or search to get started.</p>
+        </div>
+      </main>
+
+      <!-- Playground and Code Snippets Panel -->
+      <section class="playground-section">
+        <!-- Language tabs -->
+        <div class="tabs-header">
+          <button class="tab-btn active" data-lang="curl">cURL</button>
+          <button class="tab-btn" data-lang="javascript">JavaScript</button>
+          <button class="tab-btn" data-lang="dart">Dart (Flutter)</button>
+          <button class="tab-btn" data-lang="python">Python</button>
+        </div>
+
+        <!-- Code Snippet Area -->
+        <div class="code-container">
+          <button class="copy-btn" id="copy-btn">Copy</button>
+          <pre><code class="code-block" id="code-snippet">// Select an endpoint to generate code snippet</code></pre>
+        </div>
+
+        <!-- Sandbox Form -->
+        <div class="explorer-container">
+          <h3 class="explorer-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            Interactive Sandbox
+          </h3>
+
+          <div class="explorer-input-group">
+            <label class="explorer-label">Base URL</label>
+            <input type="text" class="explorer-input" id="api-base-url" value="http://localhost:3000">
+          </div>
+
+          <div class="explorer-input-group">
+            <label class="explorer-label">Auth Token (Bearer)</label>
+            <input type="text" class="explorer-input" id="api-token" placeholder="Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+          </div>
+
+          <!-- Dynamic Sandbox Inputs (rendered based on selected endpoint) -->
+          <div id="dynamic-inputs"></div>
+
+          <!-- Action buttons -->
+          <div class="action-row">
+            <button class="btn btn-primary" id="btn-send-request">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              Send Request
+            </button>
+            <button class="btn btn-secondary" id="btn-reset-sandbox">Reset</button>
+          </div>
+
+          <!-- Response Area -->
+          <div class="response-container" id="response-block" style="display: none;">
+            <div class="explorer-label">Response</div>
+            <div class="response-meta">
+              <span class="meta-pill" id="response-status">200 OK</span>
+              <span class="meta-pill" id="response-time">12ms</span>
+            </div>
+            <div class="response-body">
+              <pre><code class="response-json" id="response-json">{}</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

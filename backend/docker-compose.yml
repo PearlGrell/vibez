@@ -1,0 +1,19 @@
+services:
+  api:
+    build: 
+      context: ./vibez-api
+    container_name: api
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./protos:/protos
+    depends_on:
+      - grpc
+
+  grpc:
+    build: ./vibez-backend
+    container_name: grpc
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./protos:/protos

@@ -1,0 +1,6 @@
+grpcio
+grpcio-reflection
+ytmusicapi
+yt-dlp[default,curl-cffi]
+curl-cffi
+cachetools

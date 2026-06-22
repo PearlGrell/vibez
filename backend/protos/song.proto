@@ -1,0 +1,90 @@
+syntax = "proto3";
+package song;
+
+service Song {
+    rpc Song(SongRequest) returns (SongResponse);
+    rpc Audio(AudioRequest) returns (AudioResponse);
+    rpc Lyrics(LyricsRequest) returns (LyricsResponse);
+    rpc Related(RelatedRequest) returns (RelatedResponse);
+    rpc Credits(CreditsRequest) returns (CreditsResponse);
+}
+
+message SongRequest {
+    string id = 1;
+}
+
+message SongArtist {
+    string id = 1;
+    string name = 2;
+}
+
+message SongResponse {
+    string id = 1;
+    string title = 2;
+    repeated SongArtist artists = 3;
+    string album = 4;
+    string albumId = 5;
+    int32 duration = 6;
+    string thumbnail = 7;
+    string year = 8;
+}
+
+message AudioRequest {
+    string id = 1;
+}
+
+message AudioResponse {
+    string id = 1;
+    string playbackUrl = 2;
+    string mimeType = 3;
+}
+
+message LyricsRequest {
+    string id = 1;
+}
+
+message LyricBlock {
+    string text = 1;
+    int32 startTime = 2;
+    int32 endTime = 3;
+}
+
+message LyricsResponse {
+    repeated LyricBlock lyrics = 1;
+    string source = 2;
+    bool hasTimestamps = 3;
+}
+
+message RelatedRequest {
+    string id = 1;
+    int32 limit = 2;
+}
+
+message RelatedResponse {
+    repeated RelatedSongs related = 1;
+}
+
+message RelatedSongs {
+    string id = 1;
+    string title = 2;
+    string thumbnail = 3;
+    string artists = 4;
+}
+
+message CreditsRequest {
+    string id = 1;
+}
+
+message CreditEntity {
+    string name = 1;
+    string id = 2;
+}
+
+message Credit {
+    string role = 1;
+    repeated CreditEntity entities = 2;
+}
+
+message CreditsResponse {
+    repeated Credit credits = 1;
+}
