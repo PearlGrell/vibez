@@ -25,7 +25,8 @@ class ApiClient {
 
     _dio = Dio(
       BaseOptions(
-        baseUrl: dotenv.get('API_URL', fallback: 'http://localhost:3000/api'),
+        baseUrl:
+            '${dotenv.get('API_URL', fallback: 'http://localhost:3000')}/api',
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
         sendTimeout: const Duration(seconds: 30),

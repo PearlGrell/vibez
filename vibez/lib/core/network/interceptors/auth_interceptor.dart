@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:vibez/core/network/socket_client.dart';
 import 'package:vibez/core/storage/token_storage.dart';
 
 class AuthInterceptor extends Interceptor {
@@ -79,8 +80,15 @@ class AuthInterceptor extends Interceptor {
       final response = await _retry(err.requestOptions, newAccessToken);
 
       return handler.resolve(response);
-    } catch (_) {
-      await _logout();
+    } catch (e) {
+      if (e is DioException) {
+        final statusCode = e.response?.statusCode;
+        final isRefresh = e.requestOptions.path.contains('/auth/refresh');
+        
+        if (statusCode == 401 || (isRefresh && (statusCode == 403 || statusCode == 400))) {
+          await _logout();
+        }
+      }
       return handler.next(err);
     }
   }
@@ -95,6 +103,7 @@ class AuthInterceptor extends Interceptor {
     }
 
     await _tokenStorage.setAccessToken(accessToken);
+    SocketClient.instance.reconnect();
 
     return accessToken;
   }
@@ -111,5 +120,6 @@ class AuthInterceptor extends Interceptor {
 
   Future<void> _logout() async {
     await _tokenStorage.clear();
+    SocketClient.instance.disconnect();
   }
 }

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, UsePipes } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { ZodPipe } from 'src/common/pipes/zod/zod.pipe';
-import { type CreateRoomDto, createRoomSchema } from './dto/createRoom.dto';
+import { type CreateRoomDto, createRoomSchema } from './dto/create_room.dto';
 import { type UpdateRoomDto, updateRoomSchema } from './dto/update-room.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { CurrentUser, type UserPayload } from 'src/common/decorators/current-user.decorator';

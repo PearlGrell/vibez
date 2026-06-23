@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibez/core/network/api_client.dart';
+import 'package:vibez/core/network/socket_client.dart';
 import 'package:vibez/core/router/app_router.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
 import 'package:vibez/core/theme/theme.dart';
@@ -11,9 +12,13 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
   await ApiClient.instance.init();
-  
+
   final container = ProviderContainer();
-  await AudioService.init(container);
+
+  await Future.wait([
+    AudioService.init(container),
+    SocketClient.instance.initialize(),
+  ]);
 
   runApp(
     UncontrolledProviderScope(

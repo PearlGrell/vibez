@@ -7,6 +7,8 @@ import { UpdateRoomDto } from './dto/update-room.dto';
 
 @Injectable()
 export class RoomsService {
+  private activeRoomsCache = new Map<string, Room>();
+
   constructor(
     @InjectRepository(Room)
     private readonly roomRepo: Repository<Room>,
@@ -32,6 +34,15 @@ export class RoomsService {
     if (!room || room === undefined) {
       throw new NotFoundException();
     }
+    return room;
+  }
+
+  async getActiveRoom(id: string) {
+    if (this.activeRoomsCache.has(id)) {
+      return this.activeRoomsCache.get(id);
+    }
+    const room = await this.getById(id);
+    this.activeRoomsCache.set(id, room);
     return room;
   }
 
@@ -72,6 +83,7 @@ export class RoomsService {
       throw new ForbiddenException('You do not have permission to delete this room');
     }
     await this.roomRepo.remove(room);
+    this.activeRoomsCache.delete(id);
     return { success: true };
   }
 
