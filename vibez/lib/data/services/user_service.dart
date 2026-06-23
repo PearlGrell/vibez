@@ -96,4 +96,18 @@ class UserService {
       secure: true,
     );
   }
+
+  Future<Map<String, dynamic>> followRoom(String roomId) {
+    return _apiClient.post(
+      endpoint: '/users/rooms/$roomId/follow',
+      secure: true,
+    );
+  }
+
+  Future<Map<String, dynamic>> unfollowRoom(String roomId) {
+    return _apiClient.delete(
+      endpoint: '/users/rooms/$roomId/unfollow',
+      secure: true,
+    );
+  }
 }

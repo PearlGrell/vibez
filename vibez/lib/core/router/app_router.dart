@@ -1,7 +1,4 @@
 import 'package:go_router/go_router.dart';
-import 'package:vibez/data/models/playlist.dart';
-import 'package:vibez/presentation/common/app_shell.dart';
-import 'package:vibez/presentation/profile/profile_screen.dart';
 import 'routes.dart';
 export 'routes.dart';
 
@@ -37,6 +34,24 @@ class AppRouter {
           path: RouteLocation.forgotPassword,
           name: RouteName.forgotPassword,
           builder: (context, state) => ForgotPasswordScreen(),
+        ),
+        GoRoute(
+          path: RouteLocation.playlistAdd,
+          name: RouteName.playlistAdd,
+          builder: (context, state) {
+            final playlist = state.extra as Playlist?;
+            return PlaylistAddScreen(playlist: playlist);
+          },
+        ),
+        GoRoute(
+          path: RouteLocation.roomAdd,
+          name: RouteName.roomAdd,
+          builder: (context, state) => const AddRoomScreen(),
+        ),
+        GoRoute(
+          path: RouteLocation.editProfile,
+          name: RouteName.editProfile,
+          builder: (context, state) => const EditProfileScreen(),
         ),
         ShellRoute(
           builder: (context, state, child) {
@@ -106,14 +121,6 @@ class AppRouter {
               },
             ),
             GoRoute(
-              path: RouteLocation.playlistAdd,
-              name: RouteName.playlistAdd,
-              builder: (context, state) {
-                final playlist = state.extra as Playlist?;
-                return PlaylistAddScreen(playlist: playlist);
-              },
-            ),
-            GoRoute(
               path: RouteLocation.playlistAddSong,
               name: RouteName.playlistAddSong,
               builder: (context, state) {
@@ -123,11 +130,6 @@ class AppRouter {
                   playlistName: extra['playlistName'] ?? 'Playlist',
                 );
               },
-            ),
-            GoRoute(
-              path: RouteLocation.editProfile,
-              name: RouteName.editProfile,
-              builder: (context, state) => const EditProfileScreen(),
             ),
             GoRoute(
               path: RouteLocation.userProfile,

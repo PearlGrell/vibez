@@ -387,12 +387,12 @@ export class UsersService {
     return { success: true };
   }
 
-  async joinRoom(userId: string, roomId: string) {
+  async followRoom(userId: string, roomId: string) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: { joinedRooms: true },
     });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) return;
 
     const room = await this.roomRepository.findOne({ where: { id: roomId } });
     if (!room) throw new NotFoundException('Room not found');
@@ -404,12 +404,12 @@ export class UsersService {
     return { success: true };
   }
 
-  async leaveRoom(userId: string, roomId: string) {
+  async unfollowRoom(userId: string, roomId: string) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: { joinedRooms: true },
     });
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) return;
 
     user.joinedRooms = user.joinedRooms.filter((r) => r.id !== roomId);
     await this.userRepository.save(user);

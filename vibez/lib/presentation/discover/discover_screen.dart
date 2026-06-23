@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibez/core/theme/colors.dart';
+import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/shadows.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/core/theme/typography.dart';
 import 'package:vibez/data/provider/search_provider.dart';
 import 'package:vibez/presentation/discover/pages/discover_page.dart';
 import 'package:vibez/presentation/discover/pages/search_page.dart';
+import 'package:vibez/presentation/discover/widgets/add_sheet.dart';
 import 'package:vibez/presentation/discover/widgets/app_search_bar.dart';
 
 class DiscoverScreen extends ConsumerStatefulWidget {
@@ -63,7 +65,25 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
               boxShadow: AppShadows.shGlow,
             ),
             child: IconButton.filled(
-              onPressed: () {},
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  useRootNavigator: true,
+                  isDismissible: true,
+                  enableDrag: true,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(AppRadius.lg),
+                        topRight: Radius.circular(AppRadius.lg),
+                      ),
+                      child: const AddSheet(),
+                    );
+                  },
+                );
+              },
               icon: const Icon(Icons.add),
             ),
           ),

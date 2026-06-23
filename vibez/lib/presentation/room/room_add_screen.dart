@@ -3,22 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
-import 'package:vibez/data/models/playlist.dart';
-import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
+import 'package:vibez/data/repositories/room_repository.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/equalizer_bars.dart';
 
-class PlaylistAddScreen extends ConsumerStatefulWidget {
-  final Playlist? playlist;
-
-  const PlaylistAddScreen({super.key, this.playlist});
+class AddRoomScreen extends ConsumerStatefulWidget {
+  const AddRoomScreen({super.key});
 
   @override
-  ConsumerState<PlaylistAddScreen> createState() => _PlaylistAddScreenState();
+  ConsumerState<AddRoomScreen> createState() => _AddRoomScreenState();
 }
 
-class _PlaylistAddScreenState extends ConsumerState<PlaylistAddScreen> {
+class _AddRoomScreenState extends ConsumerState<AddRoomScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
@@ -51,15 +48,9 @@ class _PlaylistAddScreenState extends ConsumerState<PlaylistAddScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.playlist?.name);
-    _descriptionController = TextEditingController(text: widget.playlist?.description);
-    _isPrivate = widget.playlist?.private ?? true;
-
-    if (widget.playlist != null) {
-      _selectedTags.addAll(widget.playlist!.tags);
-    } else {
-      _selectedTags.add('Indie');
-    }
+    _nameController = TextEditingController();
+    _descriptionController = TextEditingController();
+    _selectedTags.add('Indie');
   }
 
   @override
@@ -80,47 +71,23 @@ class _PlaylistAddScreenState extends ConsumerState<PlaylistAddScreen> {
     final description = _descriptionController.text.trim();
     final tags = _selectedTags;
 
-    final playlist = widget.playlist != null
-        ? await ref
-              .read(userProvider.notifier)
-              .updatePlaylist(
-                id: widget.playlist!.id,
-                name: name,
-                description: description.isNotEmpty ? description : null,
-                private: _isPrivate,
-                tags: tags,
-              )
-        : await ref
-              .read(userProvider.notifier)
-              .createPlaylist(
-                name: name,
-                description: description.isNotEmpty ? description : null,
-                private: _isPrivate,
-                tags: tags,
-                thumbnail: null,
-              );
+    await RoomRepository.instance.createRoom(
+      name: name,
+      description: description,
+      tags: tags,
+      private: _isPrivate,
+    );
 
     setState(() {
       _isLoading = false;
     });
 
-    if (playlist != null) {
-      AppSnackbar.show(
-        message: widget.playlist != null
-            ? "Playlist '$name' updated successfully!"
-            : "Playlist '$name' created successfully!",
-        type: AppSnackType.success,
-      );
-      if (mounted) {
-        Navigator.pop(context);
-      }
-    } else {
-      AppSnackbar.show(
-        message: widget.playlist != null
-            ? "Failed to update playlist. Please try again."
-            : "Failed to create playlist. Please try again.",
-        type: AppSnackType.error,
-      );
+    AppSnackbar.show(
+      message: "Room '$name' created successfully!",
+      type: AppSnackType.success,
+    );
+    if (mounted) {
+      Navigator.pop(context);
     }
   }
 
@@ -169,13 +136,12 @@ class _PlaylistAddScreenState extends ConsumerState<PlaylistAddScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = widget.playlist != null;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          isEditing ? "Edit playlist" : "Create playlist",
-          style: const TextStyle(
+        title: const Text(
+          "Create room",
+          style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -218,7 +184,7 @@ class _PlaylistAddScreenState extends ConsumerState<PlaylistAddScreen> {
                       child: Column(
                         children: [
                           AlbumArtCover(
-                            seed: nameText.isNotEmpty ? nameText : 'Playlist',
+                            seed: nameText.isNotEmpty ? nameText : 'Room',
                             size: 160,
                             radius: AppRadius.xl,
                             child: Stack(
@@ -245,7 +211,7 @@ class _PlaylistAddScreenState extends ConsumerState<PlaylistAddScreen> {
                                       Text(
                                         nameText.isNotEmpty
                                             ? nameText
-                                            : 'Playlist name',
+                                            : 'Room name',
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 15,
@@ -262,7 +228,7 @@ class _PlaylistAddScreenState extends ConsumerState<PlaylistAddScreen> {
                           ),
                           const SizedBox(height: 12),
                           const Text(
-                            "Cover auto-generates from your playlist name",
+                            "Cover auto-generates from your room name",
                             style: TextStyle(
                               color: AppColors.text3,
                               fontSize: 12,
@@ -276,11 +242,11 @@ class _PlaylistAddScreenState extends ConsumerState<PlaylistAddScreen> {
 
                 const SizedBox(height: AppSpacing.s4),
 
-                _buildSectionLabel("Playlist name"),
+                _buildSectionLabel("Room name"),
                 TextFormField(
                   controller: _nameController,
                   style: const TextStyle(color: AppColors.text),
-                  decoration: _fieldDecoration("e.g. 3AM in Tokyo"),
+                  decoration: _fieldDecoration("e.g. Late Night Vibes"),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter a name';
@@ -340,7 +306,7 @@ class _PlaylistAddScreenState extends ConsumerState<PlaylistAddScreen> {
                             ),
                             const SizedBox(height: 2),
                             const Text(
-                              "Anyone can discover & listen",
+                              "Anyone can discover & join",
                               style: TextStyle(
                                 color: AppColors.text3,
                                 fontSize: 12,
@@ -442,9 +408,9 @@ class _PlaylistAddScreenState extends ConsumerState<PlaylistAddScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : Text(
-                            isEditing ? "Save changes" : "Create playlist",
-                            style: const TextStyle(
+                        : const Text(
+                            "Create room",
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,

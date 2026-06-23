@@ -1,9 +1,16 @@
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+
+import 'package:vibez/core/router/app_router.dart';
+import 'package:vibez/core/theme/colors.dart';
 
 enum AppSnackType { success, error, info, warning }
 
 class AppSnackbar {
   static final messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  static OverlayEntry? _currentEntry;
 
   static void show({
     required String message,
@@ -14,155 +21,247 @@ class AppSnackbar {
     VoidCallback? onAction,
     bool showClose = false,
   }) {
-    final messenger = messengerKey.currentState;
-    if (messenger == null) return;
+    final navigatorState = AppRouter.instance.router.routerDelegate.navigatorKey.currentState;
+    if (navigatorState == null) return;
 
-    final ctx = messengerKey.currentContext;
-    final dark = ctx != null
-        ? Theme.of(ctx).brightness == Brightness.dark
-        : true;
+    _currentEntry?.remove();
+    _currentEntry = null;
 
-    final palette = _palette(type);
+    final entry = OverlayEntry(
+      builder: (context) {
+        return _TopSnackbarOverlay(
+          message: message,
+          title: title,
+          type: type,
+          actionLabel: actionLabel,
+          onAction: onAction,
+          showClose: showClose,
+          duration: duration,
+          onDismissed: () {
+            if (_currentEntry != null) {
+              _currentEntry!.remove();
+              _currentEntry = null;
+            }
+          },
+        );
+      },
+    );
+
+    _currentEntry = entry;
+    navigatorState.overlay?.insert(entry);
+  }
+
+  static ({Color color, IconData icon}) _palette(AppSnackType type) {
+    switch (type) {
+      case AppSnackType.success:
+        return (color: AppColors.success, icon: Icons.check_rounded);
+      case AppSnackType.error:
+        return (color: AppColors.danger, icon: Icons.close_rounded);
+      case AppSnackType.warning:
+        return (
+          color: AppColors.warn,
+          icon: Icons.priority_high_rounded,
+        );
+      case AppSnackType.info:
+        return (
+          color: AppColors.primary,
+          icon: Icons.info_outline_rounded,
+        );
+    }
+  }
+}
+
+class _TopSnackbarOverlay extends StatefulWidget {
+  final String message;
+  final String? title;
+  final AppSnackType type;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final bool showClose;
+  final VoidCallback onDismissed;
+  final Duration duration;
+
+  const _TopSnackbarOverlay({
+    required this.message,
+    this.title,
+    required this.type,
+    this.actionLabel,
+    this.onAction,
+    this.showClose = false,
+    required this.onDismissed,
+    required this.duration,
+  });
+
+  @override
+  State<_TopSnackbarOverlay> createState() => _TopSnackbarOverlayState();
+}
+
+class _TopSnackbarOverlayState extends State<_TopSnackbarOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Offset> _offsetAnimation;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 300));
+    _offsetAnimation = Tween<Offset>(
+            begin: const Offset(0, -1.5), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+
+    _controller.forward();
+    _timer = Timer(widget.duration, () => dismiss());
+  }
+
+  void dismiss() {
+    if (mounted) {
+      _controller.reverse().then((_) {
+        if (mounted) widget.onDismissed();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final palette = AppSnackbar._palette(widget.type);
     final accent = palette.color;
 
-    final surface = dark ? const Color(0xFF1C1C1F) : Colors.white;
-    final border = dark
-        ? Colors.white.withValues(alpha: 0.08)
-        : const Color(0x14000000);
-    final primaryText = dark
-        ? const Color(0xFFF5F5F7)
-        : const Color(0xFF18181B);
-    final mutedText = dark ? const Color(0xFF9A9AA2) : const Color(0xFF6B6B72);
+    final surface = dark ? AppColors.card : Colors.white;
+    final border = dark ? AppColors.hairlineDark : const Color(0x14000000);
+    final primaryText = dark ? AppColors.text : const Color(0xFF18181B);
+    final mutedText = dark ? AppColors.text2 : const Color(0xFF6B6B72);
+    final hasTitle = widget.title != null && widget.title!.trim().isNotEmpty;
 
-    final hasTitle = title != null && title.trim().isNotEmpty;
-
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          padding: EdgeInsets.zero,
-          behavior: SnackBarBehavior.floating,
-          duration: duration,
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          content: Align(
-            alignment: Alignment.centerLeft,
+    return Positioned(
+      top: MediaQuery.paddingOf(context).top + 16,
+      left: 16,
+      right: 16,
+      child: SlideTransition(
+        position: _offsetAnimation,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Material(
+            color: Colors.transparent,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: DecoratedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: Container(
                 decoration: BoxDecoration(
-                  color: surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: border, width: 1),
-
+                  borderRadius: BorderRadius.circular(50),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: dark ? 0.45 : 0.07),
-                      blurRadius: 3,
-                      offset: const Offset(0, 1),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: dark ? 0.35 : 0.10),
-                      blurRadius: 28,
-                      offset: const Offset(0, 14),
+                      color: Colors.black.withValues(alpha: dark ? 0.3 : 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    crossAxisAlignment: hasTitle
-                        ? CrossAxisAlignment.start
-                        : CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: dark ? 0.16 : 0.12),
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: Icon(palette.icon, color: accent, size: 18),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(50),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: surface.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(50),
+                        border: Border.all(color: border, width: 1),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            if (hasTitle) ...[
-                              Text(
-                                title,
-                                style: TextStyle(
-                                  color: primaryText,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: -0.1,
-                                  height: 1.3,
-                                ),
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: accent,
+                                shape: BoxShape.circle,
                               ),
-                              const SizedBox(height: 2),
-                            ],
-                            Text(
-                              message,
-                              style: TextStyle(
-                                color: hasTitle ? mutedText : primaryText,
-                                fontSize: hasTitle ? 13 : 14,
-                                fontWeight: hasTitle
-                                    ? FontWeight.w400
-                                    : FontWeight.w500,
-                                letterSpacing: -0.1,
-                                height: 1.4,
+                              child: Icon(
+                                palette.icon,
+                                color: dark
+                                    ? const Color(0xFF18181B)
+                                    : Colors.white,
+                                size: 16,
                               ),
                             ),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (hasTitle) ...[
+                                    Text(
+                                      widget.title!,
+                                      style: TextStyle(
+                                        color: primaryText,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: -0.1,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                  ],
+                                  Text(
+                                    widget.message,
+                                    style: TextStyle(
+                                      color:
+                                          hasTitle ? mutedText : primaryText,
+                                      fontSize: hasTitle ? 13 : 14,
+                                      fontWeight: hasTitle
+                                          ? FontWeight.w400
+                                          : FontWeight.w600,
+                                      letterSpacing: -0.1,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (widget.actionLabel != null &&
+                                widget.onAction != null) ...[
+                              const SizedBox(width: 12),
+                              _Action(
+                                label: widget.actionLabel!,
+                                color: accent,
+                                onTap: () {
+                                  dismiss();
+                                  widget.onAction!();
+                                },
+                              ),
+                            ] else if (widget.showClose) ...[
+                              const SizedBox(width: 8),
+                              _Close(
+                                color: mutedText,
+                                onTap: dismiss,
+                              ),
+                            ],
                           ],
                         ),
                       ),
-                      if (actionLabel != null && onAction != null) ...[
-                        const SizedBox(width: 8),
-                        _Action(
-                          label: actionLabel,
-                          color: accent,
-                          onTap: () {
-                            messenger.hideCurrentSnackBar();
-                            onAction();
-                          },
-                        ),
-                      ] else if (showClose) ...[
-                        const SizedBox(width: 4),
-                        _Close(
-                          color: mutedText,
-                          onTap: messenger.hideCurrentSnackBar,
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
         ),
-      );
-  }
-
-  static ({Color color, IconData icon}) _palette(AppSnackType type) {
-    switch (type) {
-      case AppSnackType.success:
-        return (color: const Color(0xFF22C55E), icon: Icons.check_rounded);
-      case AppSnackType.error:
-        return (color: const Color(0xFFEF4444), icon: Icons.close_rounded);
-      case AppSnackType.warning:
-        return (
-          color: const Color(0xFFF59E0B),
-          icon: Icons.priority_high_rounded,
-        );
-      case AppSnackType.info:
-        return (
-          color: const Color(0xFF3B82F6),
-          icon: Icons.info_outline_rounded,
-        );
-    }
+      ),
+    );
   }
 }
 
@@ -180,12 +279,12 @@ class _Action extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: color.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(50),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(50),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: Text(
             label,
             style: TextStyle(

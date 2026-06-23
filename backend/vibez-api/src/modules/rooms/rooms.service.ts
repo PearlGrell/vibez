@@ -1,20 +1,42 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Room } from './entities/room.entity';
 import { User } from '../users/entities/user.entity';
 import { ILike, Repository } from 'typeorm';
 import { UpdateRoomDto } from './dto/update-room.dto';
 
+interface CacheItem<T> {
+  value: T;
+  expiry: number;
+}
+
 @Injectable()
-export class RoomsService {
-  private activeRoomsCache = new Map<string, Room>();
+export class RoomsService implements OnModuleDestroy {
+  private activeRoomsCache = new Map<string, CacheItem<Room>>();
+  private readonly CACHE_TTL = 1000 * 60 * 5; // 5 minutes
+  private cleanupInterval: NodeJS.Timeout;
 
   constructor(
     @InjectRepository(Room)
     private readonly roomRepo: Repository<Room>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
-  ) {}
+  ) {
+    this.cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [id, item] of this.activeRoomsCache.entries()) {
+        if (item.expiry <= now) {
+          this.activeRoomsCache.delete(id);
+        }
+      }
+    }, 1000 * 60 * 10);
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
+  }
 
   async get(limit?: number) {
     return await this.roomRepo.find({
@@ -23,6 +45,10 @@ export class RoomsService {
       },
       take: limit,
     });
+  }
+
+  async getAll() {
+    return await this.roomRepo.find();
   }
 
   async getById(id: string) {
@@ -38,11 +64,12 @@ export class RoomsService {
   }
 
   async getActiveRoom(id: string) {
-    if (this.activeRoomsCache.has(id)) {
-      return this.activeRoomsCache.get(id);
+    const cached = this.activeRoomsCache.get(id);
+    if (cached && cached.expiry > Date.now()) {
+      return cached.value;
     }
     const room = await this.getById(id);
-    this.activeRoomsCache.set(id, room);
+    this.activeRoomsCache.set(id, { value: room, expiry: Date.now() + this.CACHE_TTL });
     return room;
   }
 
@@ -74,7 +101,9 @@ export class RoomsService {
     }
     Object.assign(room, updateRoomDto);
     room.updatedAt = new Date();
-    return await this.roomRepo.save(room);
+    const updated = await this.roomRepo.save(room);
+    this.activeRoomsCache.set(id, { value: updated, expiry: Date.now() + this.CACHE_TTL });
+    return updated;
   }
 
   async delete(id: string, userId: string) {
@@ -87,41 +116,5 @@ export class RoomsService {
     return { success: true };
   }
 
-  async addUserToRoom(userId: string, roomId: string) {
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: { joinedRooms: true },
-    });
-    if (!user) return;
 
-    const room = await this.roomRepo.findOne({ where: { id: roomId } });
-    if (!room) return;
-
-    if (!user.joinedRooms.some((r) => r.id === room.id)) {
-      user.joinedRooms.push(room);
-      await this.userRepo.save(user);
-    }
-  }
-
-  async removeUserFromRoom(userId: string, roomId: string) {
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: { joinedRooms: true },
-    });
-    if (!user) return;
-
-    user.joinedRooms = user.joinedRooms.filter((r) => r.id !== roomId);
-    await this.userRepo.save(user);
-  }
-
-  async removeUserFromAllRooms(userId: string) {
-    const user = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: { joinedRooms: true },
-    });
-    if (!user) return;
-
-    user.joinedRooms = [];
-    await this.userRepo.save(user);
-  }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/presentation/discover/discover_screen.dart';
+import 'package:vibez/presentation/discover/widgets/add_sheet.dart';
 import 'package:vibez/presentation/landing/widgets/app_bottom_navbar.dart';
 import 'package:vibez/presentation/profile/profile_screen.dart';
 
@@ -44,7 +46,25 @@ class _LandingScreenState extends State<LandingScreen> {
       ),
       bottomNavigationBar: AppBottomNavbar(
         currentIndex: _currentIndex,
-        buttonTap: () {},
+        buttonTap: () {
+          showModalBottomSheet(
+              context: context,
+              useRootNavigator: true,
+              isDismissible: true,
+              enableDrag: true,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) {
+                return ClipRRect(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(AppRadius.lg),
+                    topRight: Radius.circular(AppRadius.lg),
+                  ),
+                  child: const AddSheet(),
+                );
+              }
+          );
+        },
         onTap: (idx) {
           setState(() {
             _currentIndex = idx;

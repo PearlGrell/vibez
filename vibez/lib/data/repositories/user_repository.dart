@@ -155,4 +155,24 @@ class UserRepository {
       return false;
     }
   }
+
+  Future<bool> followRoom(String roomId) async {
+    try {
+      final res = await _userService.followRoom(roomId);
+      return res['success'] == true;
+    } catch (err) {
+      AppSnackbar.show(message: "Something went wrong.", type: AppSnackType.error);
+      return false;
+    }
+  }
+
+  Future<bool> unfollowRoom(String roomId) async {
+    try {
+      final res = await _userService.unfollowRoom(roomId);
+      return res['success'] == true;
+    } catch (err) {
+      AppSnackbar.show(message: "Something went wrong.", type: AppSnackType.error);
+      return false;
+    }
+  }
 }

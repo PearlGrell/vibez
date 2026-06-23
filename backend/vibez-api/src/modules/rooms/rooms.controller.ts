@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, UsePipes } from '@nestjs/common';
 import { RoomsService } from './rooms.service';
 import { ZodPipe } from 'src/common/pipes/zod/zod.pipe';
-import { type CreateRoomDto, createRoomSchema } from './dto/create_room.dto';
+import { type CreateRoomDto, createRoomSchema } from './dto/create-room.dto';
 import { type UpdateRoomDto, updateRoomSchema } from './dto/update-room.dto';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { CurrentUser, type UserPayload } from 'src/common/decorators/current-user.decorator';
@@ -34,6 +34,7 @@ export class RoomsController {
   async create(@Body() body: CreateRoomDto, @CurrentUser() user: UserPayload) {
     return await this.roomsService.create(body.name, body.description, body.tags, body.private, user.sub);
   }
+
 
   @Patch('/:id')
   @UseGuards(AuthGuard)

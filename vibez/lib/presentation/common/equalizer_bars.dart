@@ -53,25 +53,29 @@ class _EqualizerBarsState extends State<EqualizerBars>
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: List.generate(_barCount, (i) {
-        return AnimatedBuilder(
-          animation: _animations[i],
-          builder: (context, _) {
-            return Container(
-              width: 3,
-              height: 14 * _animations[i].value,
-              margin: EdgeInsets.only(right: i < _barCount - 1 ? 2 : 0),
-              decoration: BoxDecoration(
-                color: widget.color ?? AppColors.primary,
-                borderRadius: BorderRadius.circular(1.5),
-              ),
-            );
-          },
-        );
-      }),
+    return SizedBox(
+      height: 20,
+      width: 20,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: List.generate(_barCount, (i) {
+          return AnimatedBuilder(
+            animation: _animations[i],
+            builder: (context, _) {
+              return Container(
+                width: 3,
+                height: 14 * _animations[i].value,
+                margin: EdgeInsets.only(right: i < _barCount - 1 ? 2 : 0),
+                decoration: BoxDecoration(
+                  color: widget.color ?? AppColors.primary,
+                  borderRadius: BorderRadius.circular(1.5),
+                ),
+              );
+            },
+          );
+        }),
+      ),
     );
   }
 }

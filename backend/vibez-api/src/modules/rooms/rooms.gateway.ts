@@ -3,6 +3,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -19,6 +20,7 @@ import { RoomEvents } from './constants/room-events';
 import {
   RoomJoinResponseDto,
   RoomLeaveResponseDto,
+  RoomsResponseDto,
   RoomSyncResponseDto,
 } from './dto/room-responses.dto';
 
@@ -27,7 +29,7 @@ import {
     origin: '*',
   },
 })
-export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly roomService: RoomsService,
     private readonly jwtService: JwtService,
@@ -36,35 +38,50 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  async handleConnection(client: Socket) {
-    try {
-      const token = client.handshake.auth?.token;
-
-      if (!token) {
-        client.disconnect();
-        return;
+  afterInit(server: Server) {
+    server.use(async (socket, next) => {
+      try {
+        const token = socket.handshake.auth?.token;
+        if (!token) {
+          return next(new Error('Authentication error'));
+        }
+        const payload = await this.jwtService.verifyAsync(token);
+        socket.data.user = payload;
+        next();
+      } catch {
+        next(new Error('Authentication error'));
       }
-
-      const payload = await this.jwtService.verifyAsync(token);
-
-      client.data.user = payload;
-    } catch {
-      client.disconnect();
-    }
+    });
   }
 
-  async handleDisconnect(client: Socket) {
-    if (client.data?.user?.sub) {
-      await this.roomService.removeUserFromAllRooms(client.data.user.sub);
-    }
+  handleConnection(client: Socket) {}
+
+  handleDisconnect(client: Socket) {}
+
+  @SubscribeMessage(RoomEvents.ROOMS)
+  async listRooms(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data?: { limit?: number },
+  ): Promise<RoomsResponseDto> {
+    const limit = data?.limit ?? 50;
+    const rooms = await this.roomService.get(limit);
+
+    return {
+      rooms: rooms.map((room) => ({
+        id: room.id,
+        name: room.name,
+        currentDj: room.currentDj,
+        participants: this.server.sockets.adapter.rooms.get(`room:${room.id}`)?.size ?? 0,
+        currentSongId: room.currentSong,
+        playing: room.playing,
+        startedAt: room.startedAt,
+      })),
+    };
   }
 
   @SubscribeMessage(RoomEvents.JOIN)
   @UsePipes(new ZodPipe(joinRoomSchema))
-  async joinRoom(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: JoinRoomDto,
-  ): Promise<RoomJoinResponseDto> {
+  async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<RoomJoinResponseDto> {
     const room = await this.roomService.getActiveRoom(data.roomId);
 
     if (!room) {
@@ -78,7 +95,8 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         success: true,
         roomId: room.id,
         participants: this.server.sockets.adapter.rooms.get(roomName)?.size ?? 0,
-        currentSongId: room.currentSong?.id,
+        currentSong: room.currentSong,
+        currentDj: room.currentDj,
         playing: room.playing,
         startedAt: room.startedAt,
       };
@@ -106,7 +124,8 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       success: true,
       roomId: room.id,
       participants: this.server.sockets.adapter.rooms.get(roomName)?.size ?? 0,
-      currentSongId: room.currentSong?.id,
+      currentSong: room.currentSong,
+      currentDj: room.currentDj,
       playing: room.playing,
       startedAt: room.startedAt,
     };
@@ -114,10 +133,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage(RoomEvents.LEAVE)
   @UsePipes(new ZodPipe(leaveRoomSchema))
-  async leaveRoom(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: LeaveRoomDto,
-  ): Promise<RoomLeaveResponseDto> {
+  async leaveRoom(@ConnectedSocket() client: Socket, @MessageBody() data: LeaveRoomDto): Promise<RoomLeaveResponseDto> {
     const room = await this.roomService.getActiveRoom(data.roomId);
 
     if (!room) {
@@ -139,10 +155,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage(RoomEvents.SYNC)
   @UsePipes(new ZodPipe(joinRoomSchema))
-  async syncRoom(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: JoinRoomDto,
-  ): Promise<RoomSyncResponseDto> {
+  async syncRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<RoomSyncResponseDto> {
     const room = await this.roomService.getActiveRoom(data.roomId);
 
     if (!room) {
@@ -151,7 +164,8 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     return {
       participants: this.server.sockets.adapter.rooms.get(`room:${room.id}`)?.size ?? 0,
-      currentSongId: room.currentSong?.id,
+      currentSong: room.currentSong,
+      currentDj: room.currentDj,
       playing: room.playing,
       startedAt: room.startedAt,
     };

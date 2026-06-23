@@ -1,8 +1,12 @@
+import { Song } from "src/modules/songs/entities/song.entity";
+import { User } from "src/modules/users/entities/user.entity";
+
 export interface RoomJoinResponseDto {
   success: boolean;
   roomId: string;
   participants: number;
-  currentSongId?: string | null;
+  currentSong?: Song | null;
+  currentDj?: User | null;
   playing?: boolean | null;
   startedAt?: Date | null;
 }
@@ -14,7 +18,22 @@ export interface RoomLeaveResponseDto {
 
 export interface RoomSyncResponseDto {
   participants: number;
-  currentSongId?: string | null;
+  currentSong?: Song | null;
+  currentDj?: User | null;
+  playing?: boolean | null;
+  startedAt?: Date | null;
+}
+
+export interface RoomsResponseDto {
+  rooms: RoomSummaryDto[];
+}
+
+interface RoomSummaryDto {
+  id: string;
+  name: string;
+  participants: number;
+  currentSongId?: Song | null;
+  currentDj?: User | null;
   playing?: boolean | null;
   startedAt?: Date | null;
 }

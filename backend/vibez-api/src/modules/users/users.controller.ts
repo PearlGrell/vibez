@@ -102,16 +102,16 @@ export class UsersController {
     return this.usersService.unlikeAlbum(user.sub, albumId);
   }
 
-  @Post('rooms/:roomId/join')
+  @Post('rooms/:roomId/follow')
   @UseGuards(AuthGuard)
-  joinRoom(@CurrentUser() user: UserPayload, @Param('roomId') roomId: string) {
-    return this.usersService.joinRoom(user.sub, roomId);
+  followRoom(@CurrentUser() user: UserPayload, @Param('roomId') roomId: string) {
+    return this.usersService.followRoom(user.sub, roomId);
   }
 
-  @Delete('rooms/:roomId/leave')
+  @Delete('rooms/:roomId/unfollow')
   @UseGuards(AuthGuard)
-  leaveRoom(@CurrentUser() user: UserPayload, @Param('roomId') roomId: string) {
-    return this.usersService.leaveRoom(user.sub, roomId);
+  unfollowRoom(@CurrentUser() user: UserPayload, @Param('roomId') roomId: string) {
+    return this.usersService.unfollowRoom(user.sub, roomId);
   }
 
   @Post('followed-artists/:artistId')
