@@ -25,9 +25,9 @@ export class PlaylistsController {
   }
 
   @Get()
-  getPlaylists(@CurrentUser() user: UserPayload, @Query('q') query: string, @Query('limit') limit?: string) {
+  getPlaylists(@Query('limit') limit?: string) {
     const parsedLimit = limit ? parseInt(limit, 10) : 20;
-    return this.playlistsService.getPlaylists(query, parsedLimit);
+    return this.playlistsService.getPlaylists(parsedLimit);
   }
 
   @Get(':id')

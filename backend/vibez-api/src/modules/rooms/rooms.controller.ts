@@ -11,9 +11,9 @@ export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
   @Get()
-  async get(@Query('q') query?: string, @Query('limit') limit?: string) {
+  async get(@Query('limit') limit?: string) {
     const parsedLimit = limit ? parseInt(limit, 10) : 20;
-    return await this.roomsService.get(query, parsedLimit);
+    return await this.roomsService.get(parsedLimit);
   }
 
   @Get('me')

@@ -14,21 +14,10 @@ export class RoomsService {
     private readonly userRepo: Repository<User>,
   ) {}
 
-  async get(query?: string, limit?: number) {
-    if (!query) {
-      return await this.roomRepo.find({
-        where: {
-          private: false,
-        },
-        take: limit,
-      });
-    }
+  async get(limit?: number) {
     return await this.roomRepo.find({
       where: {
         private: false,
-        name: ILike(`%${query}%`),
-        description: ILike(`%${query}%`),
-        tags: ILike(`%${query}%`),
       },
       take: limit,
     });

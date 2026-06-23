@@ -98,13 +98,14 @@ export class UsersService {
     return available;
   }
 
-  async findAll( userId: string, query?: string, page = 1, limit = 10,) {
+  async findAll(userId: string, query?: string, page = 1, limit = 10) {
     const qb = this.userRepository.createQueryBuilder('user');
 
+    qb.where('user.id != :id', { id: userId });
+
     if (query) {
-      qb.where('user.username LIKE :query OR user.name LIKE :query AND user.id != :id', {
+      qb.andWhere('(user.username ILIKE :query OR user.name ILIKE :query)', {
         query: `%${query}%`,
-        id: userId,
       });
     }
 

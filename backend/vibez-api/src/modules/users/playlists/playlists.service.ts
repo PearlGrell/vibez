@@ -109,21 +109,10 @@ export class PlaylistsService {
     return playlist;
   }
 
-  async getPlaylists(query?: string, limit?: number) {
-    if (!query) {
-      return await this.playlistRepository.find({
-        where: {
-          private: false,
-        },
-        take: limit,
-      });
-    }
+  async getPlaylists(limit?: number) {
     return await this.playlistRepository.find({
       where: {
         private: false,
-        name: ILike(`%${query}%`),
-        description: ILike(`%${query}%`),
-        tags: ILike(`%${query}%`),
       },
       take: limit,
     });

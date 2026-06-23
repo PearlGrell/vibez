@@ -48,7 +48,7 @@ export class SearchService implements OnModuleInit {
     [SearchType.ALBUM]: Filter.ALBUM,
   };
 
-  async search(query: string, type: SearchType = SearchType.ALL, limit = 20) {
+  async search(query: string, type: SearchType = SearchType.ALL, limit = 20, userId?: string) {
     const wantsGrpc = SearchService.GRPC_TYPES.has(type);
     const wantsRooms = type === SearchType.ALL || type === SearchType.ROOM;
     const wantsPlaylists = type === SearchType.ALL || type === SearchType.PLAYLIST;
@@ -64,7 +64,7 @@ export class SearchService implements OnModuleInit {
         : { songs: [], artists: [], albums: [] },
       wantsRooms ? this.getCachedRooms(query, limit) : [],
       wantsPlaylists ? this.getCachedPlaylists(query, limit) : [],
-      wantsUsers ? this.getCachedUsers(query, limit) : [],
+      wantsUsers ? this.getCachedUsers(query, limit, userId) : [],
     ]);
 
     return {
@@ -99,13 +99,13 @@ export class SearchService implements OnModuleInit {
     return data;
   }
 
-  private async getCachedUsers(query: string, limit: number) {
-    const key = `users:${query.toLowerCase().trim()}:${limit}`;
+  private async getCachedUsers(query: string, limit: number, userId?: string) {
+    const key = `users:${query.toLowerCase().trim()}:${limit}:${userId ?? ''}`;
     const cached = this.dbCache.get(key);
     if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
       return cached.data;
     }
-    const data = await this.searchUsers(query, limit);
+    const data = await this.searchUsers(query, limit, userId);
     this.setCacheEntry(key, data);
     return data;
   }
@@ -142,13 +142,17 @@ export class SearchService implements OnModuleInit {
     });
   }
 
-  private async searchUsers(query: string, limit: number) {
-    return this.userRepo
+  private async searchUsers(query: string, limit: number, userId?: string) {
+    const qb = this.userRepo
       .createQueryBuilder('user')
-      .where('user.username ILIKE :q OR user.name ILIKE :q', {
+      .where('(user.username ILIKE :q OR user.name ILIKE :q)', {
         q: `%${query}%`,
-      })
-      .take(limit)
-      .getMany();
+      });
+
+    if (userId) {
+      qb.andWhere('user.id != :userId', { userId });
+    }
+
+    return qb.take(limit).getMany();
   }
 }
