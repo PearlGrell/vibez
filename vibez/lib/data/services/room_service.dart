@@ -51,7 +51,7 @@ class RoomService {
     if (tags != null) body['tags'] = tags;
     if (description != null) body['description'] = description;
 
-    return await _apiClient.post(
+    return await _apiClient.patch(
       endpoint: '/rooms/$id',
       body: body,
       secure: true,

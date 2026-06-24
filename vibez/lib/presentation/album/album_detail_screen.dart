@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
@@ -137,7 +138,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        onRefresh: _fetchAlbum,
+        color: AppColors.primary,
+        child: CustomScrollView(
         slivers: [
               SliverAppBar(
                 backgroundColor: AppColors.background,
@@ -236,14 +240,24 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   ),
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            artistsStr,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  color: AppColors.text2,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                          Flexible(
+                            child: GestureDetector(
+                              onTap: () {
+                                final artist = album.artists?.firstOrNull;
+                                if (artist != null && artist.id.isNotEmpty) {
+                                  context.push('/artist/${artist.id}');
+                                }
+                              },
+                              child: Text(
+                                artistsStr,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: AppColors.text2,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -468,6 +482,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
               const SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
           ),
+      ),
     );
   }
 }

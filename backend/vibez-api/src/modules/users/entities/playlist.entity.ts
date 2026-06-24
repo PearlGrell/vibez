@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, BeforeInsert, ManyToMany, JoinTable, RelationId } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn, BeforeInsert, ManyToMany, JoinTable } from 'typeorm';
 import { User } from './user.entity';
 import { generateNanoId } from '../../../utils/nanoid';
 import { Song } from '../../songs/entities/song.entity';
@@ -51,7 +51,7 @@ export class Playlist {
   })
   songs: Song[];
 
-  @RelationId((playlist: Playlist) => playlist.createdBy)
+  @Column({ type: 'varchar', length: 11 })
   createdById: string;
 
   @ManyToOne(() => User, (user) => user.playlists, { onDelete: 'CASCADE' })

@@ -1,4 +1,5 @@
 from app.ytmusic_client import ytmusic
+from app.thumbnail import get_best_thumbnail
 import yt_dlp
 import grpc
 from generated import song_pb2
@@ -115,16 +116,7 @@ class SongService:
             for artist in track.get("artists", [])
             if artist
         ]
-        thumbnails = track.get("thumbnail") or []
-        thumbnail_url = ""
-        if thumbnails:
-            try:
-                thumbnail_url = max(
-                    thumbnails,
-                    key=lambda t: t.get("width", 0) * t.get("height", 0)
-                ).get("url", "")
-            except Exception:
-                pass
+        thumbnail_url = get_best_thumbnail(track.get("thumbnail") or [])
         return song_pb2.SongResponse(
             id=video_id,
             title=track.get("title", ""),
@@ -255,17 +247,8 @@ class SongService:
         
         related_songs = []
         for track in tracks:
-            thumbnails = track.get("thumbnail") or []
-            thumbnail_url = ""
-            if thumbnails:
-                try:
-                    thumbnail_url = max(
-                        thumbnails,
-                        key=lambda t: t.get("width", 0)
-                    ).get("url", "")
-                except Exception:
-                    pass
-            
+            thumbnail_url = get_best_thumbnail(track.get("thumbnail") or [])
+
             artists_list = track.get("artists") or []
             artists_str = ",".join(
                 artist.get("name", "")

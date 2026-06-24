@@ -11,7 +11,8 @@ import { SongGrpcService, AudioResponse, LyricsResponse, RelatedResponse, Credit
 export class SongsService implements OnModuleInit {
   private grpcService: SongGrpcService;
 
-  private readonly songCache = new Map<string, any>();
+  private readonly songCache = new Map<string, { data: any; fetchedAt: number }>();
+  private readonly SONG_CACHE_TTL = 1800_000;
   private readonly audioCache = new Map<string, { audio: AudioResponse; fetchedAt: number }>();
   private readonly lyricsCache = new Map<string, LyricsResponse>();
   private readonly relatedCache = new Map<string, RelatedResponse>();
@@ -31,8 +32,9 @@ export class SongsService implements OnModuleInit {
   }
 
   async findById(id: string): Promise<any | null> {
-    if (this.songCache.has(id)) {
-      return this.songCache.get(id);
+    const cached = this.songCache.get(id);
+    if (cached && Date.now() - cached.fetchedAt < this.SONG_CACHE_TTL) {
+      return cached.data;
     }
 
     const song = await this.songRepository.findOne({
@@ -53,7 +55,7 @@ export class SongsService implements OnModuleInit {
             album: response.albumId ? { id: response.albumId, title: response.album } : null,
             artists: response.artists || [],
           };
-          this.songCache.set(id, formatted);
+          this.songCache.set(id, { data: formatted, fetchedAt: Date.now() });
           return formatted;
         }
       } catch (err) {
@@ -63,14 +65,12 @@ export class SongsService implements OnModuleInit {
       return null;
     }
 
-    this.songCache.set(id, song);
+    this.songCache.set(id, { data: song, fetchedAt: Date.now() });
     return song;
   }
 
   async save(song: Partial<Song>): Promise<Song> {
-    if (song.id) {
-      this.songCache.delete(song.id);
-    }
+    if (song.id) this.songCache.delete(song.id);
     return this.songRepository.save(song);
   }
 
@@ -84,24 +84,38 @@ export class SongsService implements OnModuleInit {
     if (existing) {
       return existing;
     }
-    const { artistIds, ...rest } = (extraData as any) || {};
+    const { artistIds, artists: artistData, ...rest } = (extraData as any) || {};
     const song = this.songRepository.create({ id, title, ...rest } as any) as unknown as Song;
-    if (artistIds && artistIds.length > 0) {
+    const ids: string[] = artistIds || (artistData ? artistData.map((a: any) => a.id) : []);
+    const nameMap = new Map<string, string>();
+    if (artistData) {
+      for (const a of artistData) {
+        if (a.id && a.name) nameMap.set(a.id, a.name);
+      }
+    }
+    if (ids.length > 0) {
       const existingArtists = await this.artistRepository.find({
-        where: { id: In(artistIds) },
+        where: { id: In(ids) },
       });
       const existingArtistsMap = new Map(existingArtists.map((a) => [a.id, a]));
 
-      const missingArtistIds = artistIds.filter((id: string) => !existingArtistsMap.has(id));
+      const missingArtistIds = ids.filter((id: string) => !existingArtistsMap.has(id));
       if (missingArtistIds.length > 0) {
         const newArtists = missingArtistIds.map((id: string) =>
-          this.artistRepository.create({ id, name: 'Unknown Artist' }),
+          this.artistRepository.create({ id, name: nameMap.get(id) || 'Unknown Artist' }),
         );
         await this.artistRepository.save(newArtists);
         newArtists.forEach((artist: Artist) => existingArtistsMap.set(artist.id, artist));
       }
 
-      song.artists = artistIds.map((id: string) => existingArtistsMap.get(id)!);
+      for (const [artistId, artist] of existingArtistsMap) {
+        if (artist.name === 'Unknown Artist' && nameMap.has(artistId)) {
+          artist.name = nameMap.get(artistId)!;
+          await this.artistRepository.save(artist);
+        }
+      }
+
+      song.artists = ids.map((id: string) => existingArtistsMap.get(id)!);
     }
     await this.songRepository.save(song);
 

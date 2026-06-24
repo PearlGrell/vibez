@@ -119,7 +119,10 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        onRefresh: _fetchArtist,
+        color: AppColors.primary,
+        child: CustomScrollView(
         slivers: [
           SliverAppBar(
             backgroundColor: AppColors.background,
@@ -554,6 +557,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           ],
           const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
+      ),
       ),
     );
   }

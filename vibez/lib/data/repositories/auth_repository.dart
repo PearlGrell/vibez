@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:vibez/core/network/dio_exception_handler.dart';
+import 'package:vibez/core/network/socket_client.dart';
 import 'package:vibez/core/storage/token_storage.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
 import 'package:vibez/data/services/auth_service.dart';
@@ -26,6 +27,7 @@ class AuthRepository {
         password: password,
       );
       await _tokenStorage.setAccessToken(res['token']);
+      SocketClient.instance.reconnect().ignore();
       return true;
     } on DioException catch (err) {
       String errorMessage = DioExceptionHandler.getMessage(err);
@@ -38,6 +40,7 @@ class AuthRepository {
     try {
       final res = await _authService.login(email: email, password: password);
       await _tokenStorage.setAccessToken(res['token']);
+      SocketClient.instance.reconnect().ignore();
       return true;
     } on DioException catch (err) {
       String errorMessage = DioExceptionHandler.getMessage(err);

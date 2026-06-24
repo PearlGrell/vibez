@@ -59,6 +59,8 @@ export class UsersService {
         likedPlaylists: true,
         followedArtists: true,
         joinedRooms: true,
+        followers: true,
+        following: true,
       },
     });
 
@@ -254,6 +256,8 @@ export class UsersService {
         likedPlaylists: true,
         followedArtists: true,
         joinedRooms: true,
+        followers: true,
+        following: true,
       },
     });
 
@@ -321,7 +325,7 @@ export class UsersService {
         duration: songData.duration,
         thumbnail: songData.thumbnail,
         year: songData.year,
-        artistIds: songData.artists.map((a: any) => a.id),
+        artists: songData.artists || [],
       } as any);
     }
 

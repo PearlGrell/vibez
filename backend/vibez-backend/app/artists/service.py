@@ -1,4 +1,5 @@
 from app.ytmusic_client import ytmusic
+from app.thumbnail import get_best_thumbnail
 import grpc
 from generated import artist_pb2
 from cachetools import TTLCache
@@ -40,19 +41,6 @@ class ArtistService:
         self.artist_cache[artist_id] = artist
         return artist
 
-    def _get_best_thumbnail(self, thumbnails):
-        if not thumbnails:
-            return ""
-        try:
-            best = max(thumbnails, key=lambda t: t.get("width", 0) * t.get("height", 0), default=None)
-            if best:
-                return best.get("url", "")
-        except Exception:
-            pass
-        if isinstance(thumbnails, list) and thumbnails:
-            return thumbnails[0].get("url", "") if isinstance(thumbnails[0], dict) else ""
-        return ""
-
     def artist(self, request, context):
         artist_id = request.id
         try:
@@ -92,7 +80,7 @@ class ArtistService:
             elif isinstance(album_val, str):
                 album_name = album_val
 
-            song_thumbnail = self._get_best_thumbnail(song.get("thumbnails"))
+            song_thumbnail = get_best_thumbnail(song.get("thumbnails"))
 
             duration = song.get("duration_seconds") or 0
             if not duration:
@@ -120,7 +108,7 @@ class ArtistService:
         albums = []
         albums_section = artist_data.get("albums") or {}
         for alb in albums_section.get("results") or []:
-            alb_thumbnail = self._get_best_thumbnail(alb.get("thumbnails"))
+            alb_thumbnail = get_best_thumbnail(alb.get("thumbnails"))
             albums.append(
                 artist_pb2.ArtistAlbum(
                     id=alb.get("browseId") or "",
@@ -135,7 +123,7 @@ class ArtistService:
         singles = []
         singles_section = artist_data.get("singles") or {}
         for sgl in singles_section.get("results") or []:
-            sgl_thumbnail = self._get_best_thumbnail(sgl.get("thumbnails"))
+            sgl_thumbnail = get_best_thumbnail(sgl.get("thumbnails"))
             singles.append(
                 artist_pb2.ArtistSingle(
                     id=sgl.get("browseId") or "",
@@ -150,7 +138,7 @@ class ArtistService:
         videos = []
         videos_section = artist_data.get("videos") or {}
         for vid in videos_section.get("results") or []:
-            vid_thumbnail = self._get_best_thumbnail(vid.get("thumbnails"))
+            vid_thumbnail = get_best_thumbnail(vid.get("thumbnails"))
             videos.append(
                 artist_pb2.ArtistVideo(
                     id=vid.get("videoId") or "",
@@ -164,7 +152,7 @@ class ArtistService:
         related_artists = []
         related_section = artist_data.get("related") or {}
         for rel in related_section.get("results") or []:
-            rel_thumbnail = self._get_best_thumbnail(rel.get("thumbnails"))
+            rel_thumbnail = get_best_thumbnail(rel.get("thumbnails"))
             # related can have 'title' instead of 'name'
             rel_name = rel.get("name") or rel.get("title") or ""
             related_artists.append(
@@ -176,7 +164,7 @@ class ArtistService:
                 )
             )
 
-        artist_thumbnail = self._get_best_thumbnail(artist_data.get("thumbnails"))
+        artist_thumbnail = get_best_thumbnail(artist_data.get("thumbnails"))
 
         songs_browse_id = songs_section.get("browseId") or ""
         albums_browse_id = albums_section.get("browseId") or ""
@@ -218,7 +206,7 @@ class ArtistService:
         elif isinstance(album_val, str):
             album_name = album_val
 
-        song_thumbnail = self._get_best_thumbnail(track.get("thumbnails"))
+        song_thumbnail = get_best_thumbnail(track.get("thumbnails"))
 
         duration = track.get("duration_seconds") or 0
         if not duration:
@@ -288,7 +276,7 @@ class ArtistService:
 
         albums = []
         for alb in results:
-            alb_thumbnail = self._get_best_thumbnail(alb.get("thumbnails"))
+            alb_thumbnail = get_best_thumbnail(alb.get("thumbnails"))
             albums.append(
                 artist_pb2.ArtistAlbum(
                     id=alb.get("browseId") or "",

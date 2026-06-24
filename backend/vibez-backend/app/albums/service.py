@@ -1,4 +1,5 @@
 from app.ytmusic_client import ytmusic
+from app.thumbnail import get_best_thumbnail
 import grpc
 from generated import album_pb2
 from cachetools import TTLCache
@@ -17,19 +18,6 @@ class AlbumService:
         album = ytmusic.get_album(album_id)
         self.album_cache[album_id] = album
         return album
-
-    def _get_best_thumbnail(self, thumbnails):
-        if not thumbnails:
-            return ""
-        try:
-            best = max(thumbnails, key=lambda t: t.get("width", 0) * t.get("height", 0), default=None)
-            if best:
-                return best.get("url", "")
-        except Exception:
-            pass
-        if isinstance(thumbnails, list) and thumbnails:
-            return thumbnails[0].get("url", "") if isinstance(thumbnails[0], dict) else ""
-        return ""
 
     def album(self, request, context):
         album_id = request.id
@@ -70,7 +58,7 @@ class AlbumService:
             ]
             
             thumbnails = track.get("thumbnails") or []
-            track_thumbnail = self._get_best_thumbnail(thumbnails)
+            track_thumbnail = get_best_thumbnail(thumbnails)
 
             tracks.append(
                 album_pb2.AlbumTrack(
@@ -96,7 +84,7 @@ class AlbumService:
                 for art in version.get("artists", [])
                 if art
             ]
-            version_thumbnail = self._get_best_thumbnail(version.get("thumbnails"))
+            version_thumbnail = get_best_thumbnail(version.get("thumbnails"))
             other_versions.append(
                 album_pb2.AlbumVersion(
                     id=version.get("browseId") or "",
@@ -119,7 +107,7 @@ class AlbumService:
                 for art in related.get("artists", [])
                 if art
             ]
-            related_thumbnail = self._get_best_thumbnail(related.get("thumbnails"))
+            related_thumbnail = get_best_thumbnail(related.get("thumbnails"))
             related_albums.append(
                 album_pb2.RelatedAlbum(
                     id=related.get("browseId") or "",
@@ -131,7 +119,7 @@ class AlbumService:
                 )
             )
 
-        album_thumbnail = self._get_best_thumbnail(album_data.get("thumbnails"))
+        album_thumbnail = get_best_thumbnail(album_data.get("thumbnails"))
 
         return album_pb2.AlbumResponse(
             id=album_id,

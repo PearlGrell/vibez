@@ -99,9 +99,8 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
                 streamSnapshot.data?.participants ?? initialData.participants;
 
             return Scaffold(
-              appBar: _buildAppBar(context),
+              appBar: _buildAppBar(context, room),
               body: _buildBody(context, room, participants),
-              bottomNavigationBar: _buildBottomBar(context, room),
             );
           },
         );
@@ -109,7 +108,7 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
+  PreferredSizeWidget _buildAppBar(BuildContext context, [Room? room]) {
     return AppBar(
       leading: AppIconButton(
         icon: Icons.chevron_left,
@@ -122,6 +121,23 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
         },
       ),
       actions: [
+        if (room != null && room.createdById == ref.watch(userProvider)?.id)
+          AppIconButton(
+            icon: Icons.edit_rounded,
+            onTap: () async {
+              final result = await AppRouter.instance.push(
+                RouteLocation.roomAdd,
+                extra: room,
+              );
+              if (result == true) {
+                setState(() {
+                  _roomDetailsFuture = ref
+                      .read(roomSocketServiceProvider)
+                      .getRoomDetails(widget.roomId);
+                });
+              }
+            },
+          ),
         AppIconButton(
           icon: Icons.ios_share_outlined,
           iconSize: 18,
@@ -192,15 +208,17 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.displayLarge,
           ),
-          const SizedBox(height: AppSpacing.s2),
-          Text(
-            room.description,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(color: AppColors.text2),
-          ),
+          if (room.description.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s2),
+            Text(
+              room.description,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: AppColors.text2),
+            ),
+          ],
           const SizedBox(height: AppSpacing.s5),
           Wrap(
             direction: Axis.horizontal,
@@ -259,7 +277,7 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: AppColors.generateBgColor(
-                            room.currentDj!.username!,
+                            room.currentDj!.username ?? room.currentDj!.name,
                           ).bg,
                         ),
                         child: Center(
@@ -268,7 +286,8 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
                             style: Theme.of(context).textTheme.labelLarge
                                 ?.copyWith(
                                   color: AppColors.generateTextColor(
-                                    room.currentDj!.username!,
+                                    room.currentDj!.username ??
+                                        room.currentDj!.name,
                                   ),
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -390,33 +409,34 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.s6),
+          Spacer(),
+          _buildBottomBar(context, room),
         ],
       ),
     );
   }
 
   Widget _buildBottomBar(BuildContext context, Room room) {
-    return Padding(
-      padding: .fromLTRB(
-        AppSpacing.s4,
-        0,
-        AppSpacing.s4,
-        kBottomNavigationBarHeight,
-      ),
-      child: Row(
-        spacing: AppSpacing.s6,
-        children: [
-          if (ref.watch(myRoomsProvider).value?.any((e) => e.id == room.id) ==
-              false)
-            Consumer(
-              builder: (context, ref, child) {
-                final user = ref.watch(userProvider);
-                final hasJoined =
-                    user?.joinedRooms?.any(
-                      (element) => element.id == room.id,
-                    ) ??
-                    false;
-                return GestureDetector(
+    final isMyRoom =
+        ref.watch(myRoomsProvider).value?.any((e) => e.id == room.id) ?? false;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.s4),
+        child: Consumer(
+          builder: (context, ref, child) {
+            final user = ref.watch(userProvider);
+
+            final hasJoined =
+                user?.joinedRooms?.any((e) => e.id == room.id) ?? false;
+
+            final actions = <Widget>[
+              if (!isMyRoom)
+                _actionButton(
+                  context,
+                  icon: hasJoined ? Icons.check : Icons.add,
+                  label: hasJoined ? "Following" : "Follow",
                   onTap: () {
                     if (hasJoined) {
                       ref.read(userProvider.notifier).unfollowRoom(room.id);
@@ -424,79 +444,91 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
                       ref.read(userProvider.notifier).followRoom(room);
                     }
                   },
-                  child: Container(
-                    height: 56,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.s7,
+                ),
+
+              if (room.currentDj == null)
+                _actionButton(
+                  context,
+                  icon: Icons.speaker_group_rounded,
+                  label: "Join as DJ",
+                  onTap: () {},
+                ),
+            ];
+
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+
+                return Wrap(
+                  spacing: AppSpacing.s3,
+                  runSpacing: AppSpacing.s3,
+                  children: [
+                    for (final action in actions)
+                      SizedBox(
+                        width: actions.length == 1
+                            ? width
+                            : (width - AppSpacing.s3) / 2,
+                        child: action,
+                      ),
+
+                    SizedBox(
+                      width: width,
+                      child: _actionButton(
+                        context,
+                        icon: Icons.headphones_outlined,
+                        label: "Join Room",
+                        isPrimary: true,
+                        onTap: () {},
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      border: Border.all(color: AppColors.cardAlt),
-                      borderRadius: AppRadius.pillBorderRadius,
-                    ),
-                    child: Row(
-                      spacing: AppSpacing.s2,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(hasJoined ? Icons.check : Icons.add),
-                        Text(
-                          hasJoined ? "Following" : "Follow",
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
+                  ],
                 );
               },
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _actionButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isPrimary = false,
+  }) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: AppRadius.pillBorderRadius,
+          onTap: onTap,
+          child: Container(
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s6),
+            decoration: BoxDecoration(
+              color: isPrimary ? AppColors.primary : AppColors.surface,
+              borderRadius: AppRadius.pillBorderRadius,
+              border: isPrimary ? null : Border.all(color: AppColors.cardAlt),
+              boxShadow: isPrimary ? AppShadows.shGlowMd : null,
             ),
-          if (room.currentDj == null)
-            Container(
-              height: 56,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s7),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                border: Border.all(color: AppColors.cardAlt),
-                borderRadius: AppRadius.pillBorderRadius,
-              ),
-              child: Row(
-                spacing: AppSpacing.s2,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.speaker_group_rounded),
-                  Text(
-                    "Join as DJ",
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+            child: Row(
+              mainAxisAlignment: .center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon),
+                const SizedBox(width: AppSpacing.s2),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: Container(
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                boxShadow: AppShadows.shGlowMd,
-                borderRadius: AppRadius.pillBorderRadius,
-              ),
-              child: Row(
-                spacing: AppSpacing.s2,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.headphones_outlined),
-                  Text(
-                    "Join Room",
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 from app.ytmusic_client import ytmusic
+from app.thumbnail import get_best_thumbnail
 
 import grpc
 from generated import search_pb2
@@ -75,19 +76,6 @@ class SearchService():
             albums=albums
         )
 
-    def _get_best_thumbnail(self, thumbnails):
-        if not thumbnails:
-            return ""
-        try:
-            best = max(thumbnails, key=lambda t: t.get("width", 0) * t.get("height", 0), default=None)
-            if best:
-                return best.get("url", "")
-        except Exception:
-            pass
-        if isinstance(thumbnails, list) and thumbnails:
-            return thumbnails[0].get("url", "") if isinstance(thumbnails[0], dict) else ""
-        return ""
-
     def _map_song(self, item):
         video_id = item.get("videoId")
         if not video_id:
@@ -112,7 +100,7 @@ class SearchService():
         artists_str = ", ".join(artists_names)
 
         thumbnails_data = item.get("thumbnails") or []
-        thumbnail_url = self._get_best_thumbnail(thumbnails_data)
+        thumbnail_url = get_best_thumbnail(thumbnails_data)
 
         return search_pb2.Song(
             id=video_id,
@@ -135,7 +123,7 @@ class SearchService():
                 artist_id = first_artist.get("id") or first_artist.get("browseId") or ""
 
         thumbnails_data = item.get("thumbnails") or []
-        thumbnail_url = self._get_best_thumbnail(thumbnails_data)
+        thumbnail_url = get_best_thumbnail(thumbnails_data)
 
         return search_pb2.Artist(
             id=artist_id,
@@ -161,7 +149,7 @@ class SearchService():
             artists_str = ", ".join(artists_names)
 
         album_thumbnails_data = item.get("thumbnails") or []
-        thumbnail_url = self._get_best_thumbnail(album_thumbnails_data)
+        thumbnail_url = get_best_thumbnail(album_thumbnails_data)
 
         return search_pb2.Album(
             id=album_id,

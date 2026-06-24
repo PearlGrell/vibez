@@ -12,7 +12,7 @@ class SocketClient {
 
   final TokenStorage _tokenStorage = TokenStorage.instance;
 
-  late final ws.Socket _socket;
+  late ws.Socket _socket;
 
   String _resolveUrl(String url) {
     if (Platform.isAndroid && url.contains('localhost')) {
@@ -23,7 +23,6 @@ class SocketClient {
 
   Future<void> initialize() async {
     final accessToken = await _tokenStorage.accessToken;
-
     _socket = ws.io(
       _resolveUrl(dotenv.get('API_URL', fallback: 'http://localhost:3000')),
       ws.OptionBuilder()

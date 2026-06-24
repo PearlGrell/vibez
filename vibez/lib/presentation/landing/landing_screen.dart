@@ -19,6 +19,8 @@ class _LandingScreenState extends State<LandingScreen> {
   late final PageController _controller;
   late int _currentIndex;
 
+  final searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -39,8 +41,10 @@ class _LandingScreenState extends State<LandingScreen> {
       body: PageView(
         controller: _controller,
         physics: const NeverScrollableScrollPhysics(),
-        children: const [
-          KeepAlivePage(child: DiscoverScreen()),
+        children: [
+          KeepAlivePage(child: DiscoverScreen(
+            searchController: searchController,
+          )),
           KeepAlivePage(child: ProfileScreen()),
         ],
       ),
@@ -67,6 +71,9 @@ class _LandingScreenState extends State<LandingScreen> {
         },
         onTap: (idx) {
           setState(() {
+            if(idx == 0){
+              searchController.clear();
+            }
             _currentIndex = idx;
           });
           _controller.animateToPage(

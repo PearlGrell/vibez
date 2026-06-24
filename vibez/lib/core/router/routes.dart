@@ -1,4 +1,5 @@
 export 'package:vibez/data/models/playlist.dart';
+export 'package:vibez/data/models/room.dart';
 export 'package:vibez/presentation/common/app_shell.dart';
 export 'package:vibez/presentation/splash/splash_screen.dart';
 export 'package:vibez/presentation/auth/welcome_screen.dart';

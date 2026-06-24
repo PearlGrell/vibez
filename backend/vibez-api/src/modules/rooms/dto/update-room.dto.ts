@@ -3,7 +3,7 @@ import z from 'zod';
 export const updateRoomSchema = z
   .object({
     name: z.string().optional(),
-    description: z.string().min(1).optional(),
+    description: z.string().optional(),
     tags: z.string().array().optional(),
     private: z.boolean().optional(),
   })

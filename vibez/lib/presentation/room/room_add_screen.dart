@@ -4,12 +4,15 @@ import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
+import 'package:vibez/data/models/room.dart';
 import 'package:vibez/data/repositories/room_repository.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/equalizer_bars.dart';
+import 'package:vibez/presentation/profile/profile_screen.dart';
 
 class AddRoomScreen extends ConsumerStatefulWidget {
-  const AddRoomScreen({super.key});
+  final Room? room;
+  const AddRoomScreen({super.key, this.room});
 
   @override
   ConsumerState<AddRoomScreen> createState() => _AddRoomScreenState();
@@ -45,12 +48,20 @@ class _AddRoomScreenState extends ConsumerState<AddRoomScreen> {
 
   final List<String> _selectedTags = [];
 
+  bool get _isEditing => widget.room != null;
+
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController();
-    _descriptionController = TextEditingController();
-    _selectedTags.add('Indie');
+    final room = widget.room;
+    _nameController = TextEditingController(text: room?.name ?? '');
+    _descriptionController = TextEditingController(text: room?.description ?? '');
+    if (room != null) {
+      _isPrivate = room.private;
+      _selectedTags.addAll(room.tags);
+    } else {
+      _selectedTags.add('Indie');
+    }
   }
 
   @override
@@ -71,23 +82,36 @@ class _AddRoomScreenState extends ConsumerState<AddRoomScreen> {
     final description = _descriptionController.text.trim();
     final tags = _selectedTags;
 
-    await RoomRepository.instance.createRoom(
-      name: name,
-      description: description,
-      tags: tags,
-      private: _isPrivate,
-    );
+    final result = _isEditing
+        ? await RoomRepository.instance.updateRoom(
+            id: widget.room!.id,
+            name: name,
+            description: description,
+            tags: tags,
+            private: _isPrivate,
+          )
+        : await RoomRepository.instance.createRoom(
+            name: name,
+            description: description,
+            tags: tags,
+            private: _isPrivate,
+          );
 
     setState(() {
       _isLoading = false;
     });
 
-    AppSnackbar.show(
-      message: "Room '$name' created successfully!",
-      type: AppSnackType.success,
-    );
-    if (mounted) {
-      Navigator.pop(context);
+    if (result != null) {
+      ref.invalidate(myRoomsProvider);
+      AppSnackbar.show(
+        message: _isEditing
+            ? "Room updated successfully!"
+            : "Room '$name' created successfully!",
+        type: AppSnackType.success,
+      );
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
     }
   }
 
@@ -139,9 +163,9 @@ class _AddRoomScreenState extends ConsumerState<AddRoomScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          "Create room",
-          style: TextStyle(
+        title: Text(
+          _isEditing ? "Edit room" : "Create room",
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -408,9 +432,9 @@ class _AddRoomScreenState extends ConsumerState<AddRoomScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text(
-                            "Create room",
-                            style: TextStyle(
+                        : Text(
+                            _isEditing ? "Save changes" : "Create room",
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,

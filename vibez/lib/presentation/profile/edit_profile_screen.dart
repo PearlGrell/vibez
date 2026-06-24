@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/data/provider/user_provider.dart';
+import 'package:vibez/data/repositories/user_repository.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
 
 extension ColorX on Color {
@@ -27,6 +29,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _usernameController;
   final _bioController = TextEditingController();
   final _bioFocusNode = FocusNode();
+
+  Timer? _debounceTimer;
+  bool _isCheckingUsername = false;
+  bool? _isUsernameAvailable;
+  String? _originalUsername;
 
   Color _selectedColor = const Color(0xFF8B5CF6);
   File? _imageFile;
@@ -71,7 +78,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void initState() {
     super.initState();
     final profile = ref.read(userProvider);
-    _usernameController = TextEditingController(text: profile?.username ?? '');
+    _originalUsername = profile?.username ?? '';
+    _usernameController = TextEditingController(text: _originalUsername);
+    _usernameController.addListener(_onUsernameChanged);
     _bioController.text = profile?.bio ?? '';
     _bioController.addListener(_onBioChanged);
 
@@ -96,12 +105,66 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
   }
 
+  void _onUsernameChanged() {
+    final text = _usernameController.text.trim();
+    _debounceTimer?.cancel();
+
+    if (text == _originalUsername) {
+      setState(() {
+        _isCheckingUsername = false;
+        _isUsernameAvailable = null;
+      });
+      return;
+    }
+
+    if (text.isEmpty || text.length < 3 || text.length > 16) {
+      setState(() {
+        _isCheckingUsername = false;
+        _isUsernameAvailable = null;
+      });
+      return;
+    }
+
+    final usernameRegex = RegExp(r'^[a-zA-Z0-9_.]+$');
+    if (!usernameRegex.hasMatch(text)) {
+      setState(() {
+        _isCheckingUsername = false;
+        _isUsernameAvailable = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isCheckingUsername = true;
+      _isUsernameAvailable = null;
+    });
+
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
+      if (!mounted) return;
+      try {
+        final available = await UserRepository.instance.checkUsername(text);
+        if (!mounted) return;
+        setState(() {
+          _isCheckingUsername = false;
+          _isUsernameAvailable = available;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _isCheckingUsername = false;
+          _isUsernameAvailable = null;
+        });
+      }
+    });
+  }
+
   void _onBioChanged() {
     setState(() {});
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _usernameController.dispose();
     _bioController.dispose();
     _bioFocusNode.dispose();
@@ -571,8 +634,42 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter a username';
                     }
+                    final text = value.trim();
+                    if (text.length < 3) return 'At least 3 characters';
+                    if (text.length > 16) return 'At most 16 characters';
+                    if (!RegExp(r'^[a-zA-Z0-9_.]+$').hasMatch(text)) {
+                      return 'Only letters, numbers, underscores, and dots';
+                    }
+                    if (_isUsernameAvailable == false) {
+                      return 'Username is already taken';
+                    }
                     return null;
                   },
+                ),
+                const SizedBox(height: AppSpacing.s1),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "3-16 characters · letters, numbers, underscores",
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.text3,
+                      ),
+                    ),
+                    if (_isCheckingUsername)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        ),
+                      )
+                    else if (_isUsernameAvailable == true)
+                      const Icon(Icons.check_circle_rounded, color: Colors.green, size: 16)
+                    else if (_isUsernameAvailable == false)
+                      const Icon(Icons.cancel_rounded, color: Colors.red, size: 16),
+                  ],
                 ),
 
                 const SizedBox(height: AppSpacing.s2),
@@ -718,7 +815,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _submit,
+                    onPressed: (_isLoading || _isCheckingUsername) ? null : _submit,
                     icon: _isLoading
                         ? const SizedBox.shrink()
                         : const Icon(Icons.done, color: Colors.white, size: 20),

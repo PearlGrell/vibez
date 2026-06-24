@@ -15,10 +15,8 @@ Future<void> main() async {
 
   final container = ProviderContainer();
 
-  await Future.wait([
-    AudioService.init(container),
-    SocketClient.instance.initialize(),
-  ]);
+  await AudioService.init(container);
+  SocketClient.instance.initialize().ignore();
 
   runApp(
     UncontrolledProviderScope(

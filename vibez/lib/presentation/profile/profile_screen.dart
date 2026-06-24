@@ -41,8 +41,14 @@ class ProfileScreen extends ConsumerWidget {
         !profileUrl.startsWith('default://');
 
     return Scaffold(
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(myRoomsProvider);
+          await ref.read(userProvider.notifier).fetchMe();
+        },
+        color: AppColors.primary,
+        child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -194,9 +200,10 @@ class ProfileScreen extends ConsumerWidget {
                   ],
                 ),
 
-                const SizedBox(height: AppSpacing.s3),
-
-                SizedBox(width: double.infinity, child: Text(profile.bio!)),
+                if (profile.bio != null && profile.bio!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.s3),
+                  SizedBox(width: double.infinity, child: Text(profile.bio!)),
+                ],
 
                 const SizedBox(height: AppSpacing.s4),
 
@@ -215,48 +222,49 @@ class ProfileScreen extends ConsumerWidget {
 
                 const SizedBox(height: AppSpacing.s6),
 
-                Column(
-                  crossAxisAlignment: .start,
-                  children: [
-                    Text(
-                      "Favourite genres",
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.text2,
-                          ),
-                    ),
-                    SizedBox(height: AppSpacing.s3),
-                    Wrap(
-                      direction: Axis.horizontal,
-                      spacing: AppSpacing.s2,
-                      runSpacing: AppSpacing.s2,
-                      children: [
-                        ...profile.tags!.map((e) {
-                          return Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: AppSpacing.s4,
-                              vertical: AppSpacing.s2 * 0.75,
+                if (profile.tags != null && profile.tags!.isNotEmpty)
+                  Column(
+                    crossAxisAlignment: .start,
+                    children: [
+                      Text(
+                        "Favourite genres",
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.text2,
                             ),
-                            decoration: BoxDecoration(
-                              color: AppColors.cardAlt.withValues(alpha: 0.5),
-                              borderRadius: AppRadius.lgBorderRadius,
-                              border: Border.all(color: AppColors.cardAlt),
-                            ),
-                            child: Text(
-                              e,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.text2,
-                                  ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                      SizedBox(height: AppSpacing.s3),
+                      Wrap(
+                        direction: Axis.horizontal,
+                        spacing: AppSpacing.s2,
+                        runSpacing: AppSpacing.s2,
+                        children: [
+                          ...profile.tags!.map((e) {
+                            return Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: AppSpacing.s4,
+                                vertical: AppSpacing.s2 * 0.75,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.cardAlt.withValues(alpha: 0.5),
+                                borderRadius: AppRadius.lgBorderRadius,
+                                border: Border.all(color: AppColors.cardAlt),
+                              ),
+                              child: Text(
+                                e,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.text2,
+                                    ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ],
+                  ),
 
                 const SizedBox(height: AppSpacing.s6),
 
@@ -269,6 +277,7 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
     ),
+      ),
   );
 }
 }

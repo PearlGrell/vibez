@@ -95,6 +95,7 @@ export class PlaylistsService {
           artists: true,
           album: true,
         },
+        createdBy: true,
       },
     });
 
@@ -142,7 +143,7 @@ export class PlaylistsService {
         duration: songData.duration,
         thumbnail: songData.thumbnail,
         year: songData.year,
-        artistIds: songData.artists?.map((a: any) => a.id) || [],
+        artists: songData.artists || [],
       } as any);
     }
 

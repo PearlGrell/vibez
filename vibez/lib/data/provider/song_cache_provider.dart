@@ -97,8 +97,16 @@ class SongCacheProvider extends Notifier<SongCacheState> {
 
   // ── Public: Data Fetching ──────────────────────────────────────────────
 
+  static bool _isSongComplete(Song song) {
+    if (song.duration <= 0) return false;
+    final artists = song.artists;
+    if (artists == null || artists.isEmpty) return false;
+    if (artists.every((a) => a.id.isEmpty)) return false;
+    return true;
+  }
+
   Future<Song?> fetchSong(String id) {
-    if (_songCache.containsKey(id)) {
+    if (_songCache.containsKey(id) && _isSongComplete(_songCache[id]!.data)) {
       return Future.value(_songCache[id]!.data);
     }
     if (_pendingSong.containsKey(id)) return _pendingSong[id]!;
@@ -169,10 +177,6 @@ class SongCacheProvider extends Notifier<SongCacheState> {
 
         _relatedCache[id] =
             CacheEntry(data: mapped, fetchedAt: DateTime.now());
-        for (final s in mapped) {
-          _songCache[s.id] = CacheEntry(data: s, fetchedAt: DateTime.now());
-        }
-        _saveCacheToDisk();
         return mapped;
       }
       return null;
@@ -271,9 +275,9 @@ class SongCacheProvider extends Notifier<SongCacheState> {
 
   void updateSongInCache(Song song) {
     if (_songCache.containsKey(song.id)) {
-      final entry = _songCache[song.id]!;
-      if (entry.data.duration != song.duration) {
-        _songCache[song.id] = CacheEntry(data: song, fetchedAt: entry.fetchedAt);
+      final existing = _songCache[song.id]!.data;
+      if (!_isSongComplete(existing) || _isSongComplete(song)) {
+        _songCache[song.id] = CacheEntry(data: song, fetchedAt: DateTime.now());
         _saveCacheToDisk();
       }
     } else {

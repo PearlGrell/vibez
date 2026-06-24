@@ -46,7 +46,10 @@ class AppRouter {
         GoRoute(
           path: RouteLocation.roomAdd,
           name: RouteName.roomAdd,
-          builder: (context, state) => const AddRoomScreen(),
+          builder: (context, state) {
+            final room = state.extra as Room?;
+            return AddRoomScreen(room: room);
+          },
         ),
         GoRoute(
           path: RouteLocation.editProfile,

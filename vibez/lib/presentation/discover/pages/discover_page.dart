@@ -44,8 +44,14 @@ class DiscoverPage extends ConsumerWidget {
     _cachedSongs ??= List.unmodifiable(recentSongs);
     final gridItems = _cachedGridItems!;
 
-    return ListView(
-      physics: const BouncingScrollPhysics(),
+    return RefreshIndicator(
+      onRefresh: () async {
+        _cachedGridItems = null;
+        _cachedSongs = null;
+      },
+      color: AppColors.primary,
+      child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
       padding: const EdgeInsets.only(top: AppSpacing.s2, bottom: AppSpacing.s9),
       children: [
         Padding(
@@ -64,6 +70,7 @@ class DiscoverPage extends ConsumerWidget {
           ),
         ),
       ],
+    ),
     );
   }
 

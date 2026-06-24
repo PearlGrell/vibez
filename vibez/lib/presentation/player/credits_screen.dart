@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
@@ -89,13 +90,43 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        currentSong?.artists?.map((e) => e.name).join(', ') ??
-                            '',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      GestureDetector(
+                        onTap: () {
+                          final artists = currentSong?.artists;
+                          if (artists != null && artists.isNotEmpty && artists.first.id.isNotEmpty) {
+                            final id = artists.first.id;
+                            Navigator.pop(context);
+                            Navigator.pop(context);
+                            context.push('/artist/$id');
+                          }
+                        },
+                        child: Text(
+                          currentSong?.artists?.map((e) => e.name).join(', ') ??
+                              '',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
+                      if (currentSong?.album != null || currentSong?.albumId != null)
+                        GestureDetector(
+                          onTap: () {
+                            final albumId = currentSong?.albumId ?? currentSong?.album?.id;
+                            if (albumId != null && albumId.isNotEmpty) {
+                              Navigator.pop(context);
+                              Navigator.pop(context);
+                              context.push('/album/$albumId');
+                            }
+                          },
+                          child: Text(
+                            currentSong?.album?.title ?? '',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.text3,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                     ],
                   ),
                 ),

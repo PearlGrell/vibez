@@ -508,30 +508,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              GestureDetector(
-                                onTap: () {
-                                  final artists = queue.currentSong!.artists;
-                                  if (artists != null &&
-                                      artists.isNotEmpty &&
-                                      artists.first.id.isNotEmpty) {
-                                    Navigator.pop(context);
-                                    context.push('/artist/${artists.first.id}');
-                                  }
-                                },
-                                child: Text(
-                                  queue.currentSong!.artists
-                                          ?.map((e) => e.name)
-                                          .join(", ") ??
-                                      'Unknown Artist',
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(
-                                        color: AppColors.text2,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
+                              Builder(builder: (context) {
+                                final artists = queue.currentSong!.artists;
+                                if (artists == null || artists.isEmpty) {
+                                  return Text(
+                                    'Unknown Artist',
+                                    style: Theme.of(context).textTheme.titleMedium
+                                        ?.copyWith(
+                                          color: AppColors.text2,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  );
+                                }
+                                return SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      for (int i = 0; i < artists.length; i++) ...[
+                                        GestureDetector(
+                                          onTap: artists[i].id.isNotEmpty
+                                              ? () {
+                                                  Navigator.pop(context);
+                                                  context.push('/artist/${artists[i].id}');
+                                                }
+                                              : null,
+                                          child: Text(
+                                            artists[i].name,
+                                            style: Theme.of(context).textTheme.titleMedium
+                                                ?.copyWith(
+                                                  color: AppColors.text2,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                          ),
+                                        ),
+                                        if (i < artists.length - 1)
+                                          Text(
+                                            ", ",
+                                            style: Theme.of(context).textTheme.titleMedium
+                                                ?.copyWith(
+                                                  color: AppColors.text2,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                          ),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              }),
                             ],
                           ),
                         ),

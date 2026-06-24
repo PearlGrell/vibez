@@ -12,31 +12,30 @@ import 'package:vibez/presentation/discover/widgets/add_sheet.dart';
 import 'package:vibez/presentation/discover/widgets/app_search_bar.dart';
 
 class DiscoverScreen extends ConsumerStatefulWidget {
-  const DiscoverScreen({super.key});
+  final TextEditingController searchController;
+  const DiscoverScreen({super.key, required this.searchController});
 
   @override
   ConsumerState<DiscoverScreen> createState() => _DiscoverScreenState();
 }
 
 class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
-  late final TextEditingController _searchController;
 
   @override
   void initState() {
     super.initState();
-    _searchController = TextEditingController();
-    _searchController.addListener(_onSearchChanged);
+    widget.searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_onSearchChanged);
-    _searchController.dispose();
+    widget.searchController.removeListener(_onSearchChanged);
+    widget.searchController.dispose();
     super.dispose();
   }
 
   void _onSearchChanged() {
-    ref.read(searchProvider.notifier).onQueryChanged(_searchController.text);
+    ref.read(searchProvider.notifier).onQueryChanged(widget.searchController.text);
   }
 
   @override
@@ -96,11 +95,11 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         ),
         child: Column(
           children: [
-            AppSearchBar(controller: _searchController),
+            AppSearchBar(controller: widget.searchController),
             const SizedBox(height: 16),
             Expanded(
               child: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _searchController,
+                valueListenable: widget.searchController,
                 builder: (context, value, child) {
                   return _buildBody(value.text);
                 },

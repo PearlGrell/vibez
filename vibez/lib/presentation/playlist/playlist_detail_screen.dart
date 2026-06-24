@@ -109,14 +109,15 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final List<Song> songs = isLikedSongs
         ? (userState?.likedSongs ?? [])
         : (_playlist?.songs ?? []);
-    final String creatorName = isLikedSongs
+    final bool isOwnerPlaylist = !isLikedSongs && _playlist?.createdById == userState?.id;
+    final String creatorName = isLikedSongs || isOwnerPlaylist
         ? "you"
-        : (_playlist?.createdBy?.name ?? "you");
+        : (_playlist?.createdBy?.name ?? "Unknown");
 
-    final String? profileUrl = isLikedSongs
+    final String? profileUrl = isLikedSongs || isOwnerPlaylist
         ? userState?.profileUrl
         : _playlist?.createdBy?.profileUrl;
-    final String creatorNameToShow = isLikedSongs ? "you" : creatorName;
+    final String creatorNameToShow = creatorName;
     final profileColor =
         profileUrl != null && profileUrl.startsWith('default://')
         ? Color(
@@ -162,23 +163,29 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       floatingActionButton: isOwner
-          ? FloatingActionButton(
-              backgroundColor: AppColors.primary,
-              onPressed: () async {
-                await context.push(
-                  '/search-add-song',
-                  extra: {
-                    'playlistId': widget.playlistId,
-                    'playlistName': playlistName,
-                  },
-                );
-                PlaylistRepository.instance.invalidateCache(widget.playlistId);
-                _fetchPlaylist();
-              },
-              child: const Icon(Icons.add, color: Colors.white),
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 80),
+              child: FloatingActionButton(
+                backgroundColor: AppColors.primary,
+                onPressed: () async {
+                  await context.push(
+                    '/search-add-song',
+                    extra: {
+                      'playlistId': widget.playlistId,
+                      'playlistName': playlistName,
+                    },
+                  );
+                  PlaylistRepository.instance.invalidateCache(widget.playlistId);
+                  _fetchPlaylist();
+                },
+                child: const Icon(Icons.add, color: Colors.white),
+              ),
             )
           : null,
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        onRefresh: _fetchPlaylist,
+        color: AppColors.primary,
+        child: CustomScrollView(
         slivers: [
           SliverAppBar(
             backgroundColor: AppColors.background,
@@ -327,12 +334,19 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                               ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        creatorNameToShow,
-                        style: const TextStyle(
-                          color: AppColors.text2,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                      GestureDetector(
+                        onTap: () {
+                          if (!isLikedSongs && !isOwnerPlaylist && _playlist?.createdBy != null) {
+                            context.push('/user/${_playlist!.createdBy!.id}');
+                          }
+                        },
+                        child: Text(
+                          creatorNameToShow,
+                          style: const TextStyle(
+                            color: AppColors.text2,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       if (!isLikedSongs) ...[
@@ -376,6 +390,26 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           );
                         },
                       ),
+                      if (!isLikedSongs && !isOwner && _playlist != null)
+                        Builder(builder: (context) {
+                          final isLiked = userState?.likedPlaylists?.any(
+                                (p) => p.id == _playlist!.id,
+                              ) ?? false;
+                          return IconButton(
+                            icon: Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: isLiked ? AppColors.danger : AppColors.text2,
+                              size: 26,
+                            ),
+                            onPressed: () {
+                              if (isLiked) {
+                                ref.read(userProvider.notifier).unlikePlaylist(_playlist!.id);
+                              } else {
+                                ref.read(userProvider.notifier).likePlaylist(_playlist!);
+                              }
+                            },
+                          );
+                        }),
                       const Spacer(),
                       if (songs.isNotEmpty)
                         GestureDetector(
@@ -542,6 +576,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 ),
           const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
+      ),
       ),
     );
   }
