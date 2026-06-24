@@ -11,15 +11,47 @@ export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
   @Get()
-  async get(@Query('limit') limit?: string) {
-    const parsedLimit = limit ? parseInt(limit, 10) : 20;
-    return await this.roomsService.get(parsedLimit);
+  async get(
+    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('sort') sort?: string,
+  ) {
+    const parsedLimit = Math.min(Math.max(limit ? parseInt(limit, 10) : 20, 1), 100);
+    const parsedPage = Math.max(page ? parseInt(page, 10) : 1, 1);
+
+    const allRooms = await this.roomsService.get();
+
+    let rooms = [...allRooms];
+    if (sort === 'newest') {
+      rooms.sort((a, b) => {
+        const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+        const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+    }
+
+    const total = rooms.length;
+    const totalPages = Math.ceil(total / parsedLimit);
+    const offset = (parsedPage - 1) * parsedLimit;
+
+    return {
+      rooms: rooms.slice(offset, offset + parsedLimit),
+      total,
+      limit: parsedLimit,
+      page: parsedPage,
+      totalPages,
+    };
   }
 
   @Get('me')
   @UseGuards(AuthGuard)
   async getMyRooms(@CurrentUser() user: UserPayload) {
     return await this.roomsService.getByCreator(user.sub);
+  }
+
+  @Get('user/:id')
+  async getUserRooms(@Param('id') id: string) {
+    return await this.roomsService.getByCreator(id);
   }
 
   @Get('/:id')

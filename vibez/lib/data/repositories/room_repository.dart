@@ -33,6 +33,32 @@ class RoomRepository {
     _roomCache.remove(id);
   }
 
+  Future<List<Room>> getMyRooms() async {
+    try {
+      final res = await _roomService.getMyRooms();
+      return res.map((e) => Room.fromJson(e)).toList();
+    } catch (err) {
+      if (err is DioException) {
+        String errorMessage = DioExceptionHandler.getMessage(err);
+        AppSnackbar.show(message: errorMessage, type: AppSnackType.error);
+      }
+      return [];
+    }
+  }
+
+  Future<List<Room>> getUserRooms(String id) async {
+    try {
+      final res = await _roomService.getUserRooms(id);
+      return res.map((e) => Room.fromJson(e)).toList();
+    } catch (err) {
+      if (err is DioException) {
+        String errorMessage = DioExceptionHandler.getMessage(err);
+        AppSnackbar.show(message: errorMessage, type: AppSnackType.error);
+      }
+      return [];
+    }
+  }
+
   Future<Room?> createRoom({
     required String name,
     required bool private,

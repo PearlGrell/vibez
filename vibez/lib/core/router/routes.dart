@@ -17,6 +17,7 @@ export 'package:vibez/presentation/profile/edit_profile_screen.dart';
 export 'package:vibez/presentation/profile/user_profile_screen.dart';
 export 'package:vibez/presentation/profile/profile_screen.dart';
 export 'package:vibez/presentation/room/room_add_screen.dart';
+export 'package:vibez/presentation/room/room_details_screen.dart';
 
 class RouteLocation {
   static const String splash = '/splash';
@@ -36,6 +37,7 @@ class RouteLocation {
   static const String editProfile = '/edit-profile';
   static const String userProfile = '/user/:id';
   static const String roomAdd = '/room-add';
+  static const String roomDetail = '/room/:id';
 }
 
 class RouteName {
@@ -56,4 +58,5 @@ class RouteName {
   static const String editProfile = 'edit-profile';
   static const String userProfile = 'user-profile';
   static const String roomAdd = 'room-add';
+  static const String roomDetail = 'room-detail';
 }

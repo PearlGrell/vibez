@@ -1,12 +1,22 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:vibez/core/theme/colors.dart';
 
 class EqualizerBars extends StatefulWidget {
-  final Color? color;
+  final Color color;
+  final double size;
+  final int barCount;
+  final double barWidth;
+  final double barSpacing;
 
   const EqualizerBars({
     super.key,
-    this.color,
+    this.color = AppColors.primary,
+    this.size = 20,
+    this.barCount = 3,
+    this.barWidth = 3,
+    this.barSpacing = 2,
   });
 
   @override
@@ -18,58 +28,70 @@ class _EqualizerBarsState extends State<EqualizerBars>
   late final List<AnimationController> _controllers;
   late final List<Animation<double>> _animations;
 
-  static const _barCount = 3;
-  static const _durations = [600, 450, 520];
-  static const _minHeights = [0.25, 0.35, 0.2];
-  static const _maxHeights = [0.9, 0.7, 1.0];
+  final _random = Random();
 
   @override
   void initState() {
     super.initState();
-    _controllers = List.generate(_barCount, (i) {
+
+    _controllers = List.generate(widget.barCount, (_) {
       return AnimationController(
         vsync: this,
-        duration: Duration(milliseconds: _durations[i]),
+        duration: Duration(
+          milliseconds: 350 + _random.nextInt(450),
+        ),
       )..repeat(reverse: true);
     });
-    _animations = List.generate(_barCount, (i) {
+
+    _animations = List.generate(widget.barCount, (i) {
+      final minHeight = 0.15 + _random.nextDouble() * 0.35;
+      final maxHeight = 0.60 + _random.nextDouble() * 0.40;
+
       return Tween<double>(
-        begin: _minHeights[i],
-        end: _maxHeights[i],
-      ).animate(CurvedAnimation(
-        parent: _controllers[i],
-        curve: Curves.easeInOut,
-      ));
+        begin: minHeight,
+        end: maxHeight.clamp(0.0, 1.0),
+      ).animate(
+        CurvedAnimation(
+          parent: _controllers[i],
+          curve: Curves.easeInOut,
+        ),
+      );
     });
   }
 
   @override
   void dispose() {
-    for (final c in _controllers) {
-      c.dispose();
+    for (final controller in _controllers) {
+      controller.dispose();
     }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final maxBarHeight = widget.size * 0.8;
+
     return SizedBox(
-      height: 20,
-      width: 20,
+      height: widget.size,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(_barCount, (i) {
+        children: List.generate(widget.barCount, (i) {
           return AnimatedBuilder(
             animation: _animations[i],
-            builder: (context, _) {
+            builder: (context, child) {
               return Container(
-                width: 3,
-                height: 14 * _animations[i].value,
-                margin: EdgeInsets.only(right: i < _barCount - 1 ? 2 : 0),
+                width: widget.barWidth,
+                height: maxBarHeight * _animations[i].value,
+                margin: EdgeInsets.only(
+                  right: i == widget.barCount - 1
+                      ? 0
+                      : widget.barSpacing,
+                ),
                 decoration: BoxDecoration(
-                  color: widget.color ?? AppColors.primary,
-                  borderRadius: BorderRadius.circular(1.5),
+                  color: widget.color,
+                  borderRadius:
+                      BorderRadius.circular(widget.barWidth / 2),
                 ),
               );
             },

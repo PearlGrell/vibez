@@ -3,6 +3,7 @@ import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/models/artist.dart';
 import 'package:vibez/data/models/album.dart';
 import 'package:vibez/data/models/playlist.dart';
+import 'package:vibez/data/models/room.dart';
 import 'package:vibez/data/provider/song_cache_provider.dart';
 import 'package:vibez/data/repositories/playlist_repository.dart';
 import '../models/user.dart';
@@ -248,6 +249,98 @@ class UserNotifier extends Notifier<User?> {
       return success;
     } catch (_) {
       state = state?.copyWith(followedArtists: prevState);
+      return false;
+    }
+  }
+
+  Future<bool> followUser(User user) async {
+    if (state == null) return false;
+
+    final prevState = List<User>.from(state!.following ?? []);
+    final following = List<User>.from(state!.following ?? []);
+    
+    if (following.any((u) => u.id == user.id)) {
+      following.removeWhere((u) => u.id == user.id);
+    } else {
+      following.add(user);
+    }
+
+    state = state?.copyWith(following: following);
+
+    try {
+      final success = await UserRepository.instance.followUser(user.id);
+      if (!success) {
+        state = state?.copyWith(following: prevState);
+      }
+      return success;
+    } catch (_) {
+      state = state?.copyWith(following: prevState);
+      return false;
+    }
+  }
+
+  Future<bool> unfollowUser(String userId) async {
+    if (state == null) return false;
+
+    final prevState = List<User>.from(state!.following ?? []);
+    final following = List<User>.from(state!.following ?? [])..removeWhere((u) => u.id == userId);
+
+    state = state?.copyWith(following: following);
+
+    try {
+      final success = await UserRepository.instance.unfollowUser(userId);
+      if (!success) {
+        state = state?.copyWith(following: prevState);
+      }
+      return success;
+    } catch (_) {
+      state = state?.copyWith(following: prevState);
+      return false;
+    }
+  }
+
+  Future<bool> followRoom(Room room) async {
+    if (state == null) return false;
+
+    final prevState = List<Room>.from(state!.joinedRooms ?? []);
+    final joinedRooms = List<Room>.from(state!.joinedRooms ?? []);
+    
+    if (joinedRooms.any((r) => r.id == room.id)) {
+      joinedRooms.removeWhere((r) => r.id == room.id);
+    } else {
+      joinedRooms.add(room);
+    }
+
+    state = state?.copyWith(joinedRooms: joinedRooms);
+
+    try {
+      final success = await UserRepository.instance.followRoom(room.id);
+      if (!success) {
+        state = state?.copyWith(joinedRooms: prevState);
+      }
+      return success;
+    } catch (_) {
+      state = state?.copyWith(joinedRooms: prevState);
+      return false;
+    }
+  }
+
+  Future<bool> unfollowRoom(String roomId) async {
+    if (state == null) return false;
+
+    final prevState = List<Room>.from(state!.joinedRooms ?? []);
+    final joinedRooms = List<Room>.from(state!.joinedRooms ?? [])..removeWhere((r) => r.id == roomId);
+
+    state = state?.copyWith(joinedRooms: joinedRooms);
+
+    try {
+      final success = await UserRepository.instance.unfollowRoom(roomId);
+      if (!success) {
+        state = state?.copyWith(joinedRooms: prevState);
+      }
+      return success;
+    } catch (_) {
+      state = state?.copyWith(joinedRooms: prevState);
       return false;
     }
   }

@@ -197,7 +197,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           emptyLabel: 'No rooms found',
           builder: (room) => RoomTile(
             room: room,
-            onTap: () {}, // TODO: add room detail route
+            onTap: () => context.push('/room/${room.id}'),
           ),
         );
       case SearchFilter.user:
@@ -276,7 +276,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         } else if (item is SearchRoom) {
           return RoomTile(
             room: item,
-            onTap: () {},
+            onTap: () => context.push('/room/${item.id}'),
           );
         } else if (item is SearchUser) {
           return UserTile(

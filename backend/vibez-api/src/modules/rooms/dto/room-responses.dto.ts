@@ -1,14 +1,12 @@
-import { Song } from "src/modules/songs/entities/song.entity";
-import { User } from "src/modules/users/entities/user.entity";
+import { Song } from 'src/modules/songs/entities/song.entity';
+import { User } from 'src/modules/users/entities/user.entity';
+import { Room } from '../entities/room.entity';
+import { QueueItem } from '../entities/queue-item.entity';
 
 export interface RoomJoinResponseDto {
   success: boolean;
-  roomId: string;
+  room: Room;
   participants: number;
-  currentSong?: Song | null;
-  currentDj?: User | null;
-  playing?: boolean | null;
-  startedAt?: Date | null;
 }
 
 export interface RoomLeaveResponseDto {
@@ -16,24 +14,48 @@ export interface RoomLeaveResponseDto {
   roomId: string;
 }
 
-export interface RoomSyncResponseDto {
+
+export interface RoomDetailsResponseDto {
+  room: Room;
   participants: number;
-  currentSong?: Song | null;
-  currentDj?: User | null;
-  playing?: boolean | null;
-  startedAt?: Date | null;
 }
 
 export interface RoomsResponseDto {
   rooms: RoomSummaryDto[];
+  total: number;
+  limit: number;
+  page: number;
+  totalPages: number;
 }
 
-interface RoomSummaryDto {
+export interface RoomSummaryDto {
   id: string;
   name: string;
+  description: string;
+  tags: string[];
   participants: number;
-  currentSongId?: Song | null;
-  currentDj?: User | null;
-  playing?: boolean | null;
-  startedAt?: Date | null;
+  currentSong: Song | null;
+  currentDj: User | null;
+  createdBy: User | null;
+  playing: boolean;
+  startedAt: Date | null;
+}
+
+export interface QueueResponseDto {
+  queue: QueueItem[];
+}
+
+export interface QueueItemResponseDto {
+  item: QueueItem;
+}
+
+export interface DjResponseDto {
+  room: Room;
+  participants: number;
+}
+
+export interface SongRequestResponseDto {
+  roomId: string;
+  song: Song;
+  requestedBy: User;
 }

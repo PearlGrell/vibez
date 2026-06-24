@@ -12,8 +12,12 @@ class RoomService {
     return await _apiClient.get(endpoint: '/rooms/$id', secure: true);
   }
 
-  Future<Map<String, dynamic>> getMyRooms() async {
+  Future<List<dynamic>> getMyRooms() async {
     return await _apiClient.get(endpoint: '/rooms/me', secure: true);
+  }
+
+  Future<List<dynamic>> getUserRooms(String id) async {
+    return await _apiClient.get(endpoint: '/rooms/user/$id', secure: true);
   }
 
   Future<Map<String, dynamic>> createRoom({

@@ -21,15 +21,23 @@ class RoomTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
           child: Row(
             children: [
-              AlbumArtCover(
-                seed: room.name,
-                size: 52,
-                radius: 26,
-                child: Icon(
-                  Icons.headphones_rounded,
-                  color: AlbumArtCover.ink(room.name),
-                  size: 22,
-                ),
+              Stack(
+                children: [
+                  AlbumArtCover(
+                    seed: room.name,
+                    size: 52,
+                    radius: 26,
+                  ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Icon(
+                      Icons.podcasts_rounded,
+                      color: AppColors.generateTextColor(room.name),
+                      size: 16,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(width: AppSpacing.s3),
               Expanded(

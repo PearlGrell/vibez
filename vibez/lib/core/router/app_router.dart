@@ -53,6 +53,14 @@ class AppRouter {
           name: RouteName.editProfile,
           builder: (context, state) => const EditProfileScreen(),
         ),
+        GoRoute(
+          path: RouteLocation.roomDetail,
+          name: RouteName.roomDetail,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return RoomDetailsScreen(roomId: id);
+          },
+        ),
         ShellRoute(
           builder: (context, state, child) {
             return AppShell(location: state.matchedLocation, child: child);

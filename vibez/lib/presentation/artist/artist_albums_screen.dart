@@ -74,7 +74,7 @@ class _ArtistAlbumsScreenState extends ConsumerState<ArtistAlbumsScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: AppIconButton(
-          icon: Icons.arrow_back_ios_new,
+          icon: Icons.chevron_left,
           onTap: () => Navigator.pop(context),
         ),
         title: Text(

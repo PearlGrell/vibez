@@ -5,12 +5,18 @@ import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/data/models/user.dart';
+import 'package:vibez/data/models/room.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/data/repositories/user_repository.dart';
+import 'package:vibez/data/repositories/room_repository.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/details_skeleton.dart';
 import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
 import 'package:vibez/presentation/profile/profile_screen.dart';
+
+final userRoomsProvider = FutureProvider.family<List<Room>, String>((ref, userId) async {
+  return await RoomRepository.instance.getUserRooms(userId);
+});
 
 class UserProfileScreen extends ConsumerStatefulWidget {
   final String userId;
@@ -502,7 +508,83 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 140),
+
+                // My Rooms
+                ...ref.watch(userRoomsProvider(profile.id)).when(
+                  data: (userRooms) {
+                    if (userRooms.isEmpty) return [];
+                    return [
+                      const SizedBox(height: AppSpacing.s4),
+                      const Text(
+                        "My Rooms",
+                        style: TextStyle(
+                            color: AppColors.text2,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16),
+                      ),
+                      const SizedBox(height: AppSpacing.s4),
+                      SizedBox(
+                        height: 150,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: userRooms.length,
+                          itemBuilder: (context, index) {
+                            final room = userRooms[index];
+                            return GestureDetector(
+                              onTap: () {
+                                context.push('/room/${room.id}');
+                              },
+                              child: Container(
+                                width: 110,
+                                margin: const EdgeInsets.only(right: 16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Stack(
+                                      children: [
+                                        AlbumArtCover(
+                                          seed: room.name,
+                                          size: 110,
+                                          radius: AppRadius.sm,
+                                        ),
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: Icon(
+                                            Icons.podcasts_rounded,
+                                            color: AppColors.generateTextColor(room.name),
+                                            size: 18,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      room.name,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ];
+                  },
+                  loading: () => [
+                    const SizedBox(height: AppSpacing.s4),
+                    const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                  ],
+                  error: (_, __) => [],
+                ),
+                const SizedBox(height: 140),
                 ],
               ),
             ),

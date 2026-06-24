@@ -16,13 +16,25 @@ import { UsePipes } from '@nestjs/common';
 import { ZodPipe } from 'src/common/pipes/zod/zod.pipe';
 import { type JoinRoomDto, joinRoomSchema } from './dto/join-room.dto';
 import { type LeaveRoomDto, leaveRoomSchema } from './dto/leave-room.dto';
+import {
+  type AddSongDto, addSongSchema,
+  type RemoveSongDto, removeSongSchema,
+  type RequestSongDto, requestSongSchema,
+  type AssignDjDto, assignDjSchema,
+} from './dto/queue.dto';
 import { RoomEvents } from './constants/room-events';
 import {
-  RoomJoinResponseDto,
-  RoomLeaveResponseDto,
-  RoomsResponseDto,
-  RoomSyncResponseDto,
+  type RoomJoinResponseDto,
+  type RoomLeaveResponseDto,
+  type RoomDetailsResponseDto,
+  type RoomsResponseDto,
+
+  type QueueResponseDto,
+  type QueueItemResponseDto,
+  type DjResponseDto,
+  type SongRequestResponseDto,
 } from './dto/room-responses.dto';
+import { Room } from './entities/room.entity';
 
 @WebSocketGateway({
   cors: {
@@ -56,118 +68,305 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
   handleConnection(client: Socket) {}
 
-  handleDisconnect(client: Socket) {}
+  async handleDisconnect(client: Socket) {
+    for (const r of client.rooms) {
+      if (!r.startsWith('room:')) continue;
+      const roomId = r.replace('room:', '');
+      try {
+        const wasDj = await this.roomService.isDj(roomId, client.data.user.sub);
+        if (wasDj) {
+          const participantIds = await this.getParticipantUserIds(roomId, client.id);
+          const updated = await this.roomService.autoAssignDj(roomId, participantIds);
+          this.broadcastStateUpdate(r, updated);
+        }
+        this.server.to(r).emit(RoomEvents.USER_LEFT, {
+          userId: client.data.user.sub,
+          room: await this.roomService.getById(roomId),
+          participants: this.getParticipantCount(roomId),
+        });
+      } catch {}
+    }
+  }
+
+  private getParticipantCount(roomId: string): number {
+    return this.server.sockets.adapter.rooms.get(`room:${roomId}`)?.size ?? 0;
+  }
+
+  private async getParticipantUserIds(roomId: string, excludeSocketId?: string): Promise<string[]> {
+    const socketIds = this.server.sockets.adapter.rooms.get(`room:${roomId}`);
+    if (!socketIds) return [];
+    const ids: string[] = [];
+    for (const sid of socketIds) {
+      if (sid === excludeSocketId) continue;
+      const s = this.server.sockets.sockets.get(sid);
+      if (s?.data?.user?.sub) {
+        ids.push(s.data.user.sub);
+      }
+    }
+    return ids;
+  }
+
+  private broadcastStateUpdate(roomName: string, room: Room) {
+    const roomId = roomName.startsWith('room:') ? roomName.replace('room:', '') : roomName;
+    this.server.to(`room:${roomId}`).emit(RoomEvents.STATE_UPDATE, {
+      room,
+      participants: this.getParticipantCount(roomId),
+    });
+  }
+
+  private async ensureDj(roomId: string, userId: string) {
+    const isDj = await this.roomService.isDj(roomId, userId);
+    if (!isDj) {
+      throw new WsException({ code: 'NOT_DJ', message: 'Only the DJ can perform this action' });
+    }
+  }
+
+  private async ensureNotDj(roomId: string, userId: string) {
+    const isDj = await this.roomService.isDj(roomId, userId);
+    if (isDj) {
+      throw new WsException({ code: 'IS_DJ', message: 'The DJ cannot perform this action' });
+    }
+  }
+
+  // ── Room listing & details ──
 
   @SubscribeMessage(RoomEvents.ROOMS)
   async listRooms(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data?: { limit?: number },
+    @MessageBody() data?: { limit?: number; page?: number; sort?: string },
   ): Promise<RoomsResponseDto> {
-    const limit = data?.limit ?? 50;
-    const rooms = await this.roomService.get(limit);
+    const limit = Math.min(Math.max(data?.limit ?? 20, 1), 100);
+    const page = Math.max(data?.page ?? 1, 1);
 
-    return {
-      rooms: rooms.map((room) => ({
-        id: room.id,
-        name: room.name,
-        currentDj: room.currentDj,
-        participants: this.server.sockets.adapter.rooms.get(`room:${room.id}`)?.size ?? 0,
-        currentSongId: room.currentSong,
-        playing: room.playing,
-        startedAt: room.startedAt,
-      })),
-    };
+    const allRooms = await this.roomService.get();
+
+    let enriched = allRooms.map((room) => ({
+      id: room.id,
+      name: room.name,
+      description: room.description,
+      tags: room.tags,
+      currentDj: room.currentDj,
+      createdBy: room.createdBy,
+      participants: this.getParticipantCount(room.id),
+      currentSong: room.currentSong,
+      playing: room.playing,
+      startedAt: room.startedAt,
+    }));
+
+    if (data?.sort === 'trending') {
+      enriched.sort((a, b) => b.participants - a.participants);
+    } else if (data?.sort === 'newest') {
+      enriched.sort((a, b) => {
+        const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+        const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+    } else if (data?.sort === 'related') {
+      const user = await this.roomService.getUserById(client.data.user.sub);
+      const userTags = new Set(user.tags ?? []);
+      enriched.sort((a, b) => {
+        const aScore = a.tags.filter((t) => userTags.has(t)).length;
+        const bScore = b.tags.filter((t) => userTags.has(t)).length;
+        return bScore - aScore;
+      });
+    }
+
+    const total = enriched.length;
+    const totalPages = Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+    const rooms = enriched.slice(offset, offset + limit);
+
+    return { rooms, total, limit, page, totalPages };
   }
+
+  @SubscribeMessage(RoomEvents.DETAILS)
+  @UsePipes(new ZodPipe(joinRoomSchema))
+  async roomDetails(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: JoinRoomDto,
+  ): Promise<RoomDetailsResponseDto> {
+    const room = await this.roomService.getById(data.roomId);
+    return { room, participants: this.getParticipantCount(room.id) };
+  }
+
+  // ── Join & leave room ──
 
   @SubscribeMessage(RoomEvents.JOIN)
   @UsePipes(new ZodPipe(joinRoomSchema))
   async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<RoomJoinResponseDto> {
-    const room = await this.roomService.getActiveRoom(data.roomId);
-
-    if (!room) {
-      throw new WsException({ code: 'ROOM_NOT_FOUND', message: 'Room not found' });
-    }
-
+    const room = await this.roomService.getById(data.roomId);
     const roomName = `room:${room.id}`;
 
     if (client.rooms.has(roomName)) {
-      return {
-        success: true,
-        roomId: room.id,
-        participants: this.server.sockets.adapter.rooms.get(roomName)?.size ?? 0,
-        currentSong: room.currentSong,
-        currentDj: room.currentDj,
-        playing: room.playing,
-        startedAt: room.startedAt,
-      };
+      return { success: true, room, participants: this.getParticipantCount(room.id) };
     }
 
     for (const r of client.rooms) {
       if (r.startsWith('room:') && r !== roomName) {
-        await client.leave(r);
         const oldRoomId = r.replace('room:', '');
-        await this.roomService.removeUserFromRoom(client.data.user.sub, oldRoomId);
+        const wasDj = await this.roomService.isDj(oldRoomId, client.data.user.sub);
+        await client.leave(r);
+        if (wasDj) {
+          const participantIds = await this.getParticipantUserIds(oldRoomId);
+          const updated = await this.roomService.autoAssignDj(oldRoomId, participantIds);
+          this.broadcastStateUpdate(r, updated);
+        }
+        const oldRoom = await this.roomService.getById(oldRoomId);
         this.server.to(r).emit(RoomEvents.USER_LEFT, {
           userId: client.data.user.sub,
+          room: oldRoom,
+          participants: this.getParticipantCount(oldRoomId),
         });
       }
     }
 
     await client.join(roomName);
-    await this.roomService.addUserToRoom(client.data.user.sub, room.id);
-
     this.server.to(roomName).emit(RoomEvents.USER_JOINED, {
       userId: client.data.user.sub,
+      room,
+      participants: this.getParticipantCount(room.id),
     });
 
-    return {
-      success: true,
-      roomId: room.id,
-      participants: this.server.sockets.adapter.rooms.get(roomName)?.size ?? 0,
-      currentSong: room.currentSong,
-      currentDj: room.currentDj,
-      playing: room.playing,
-      startedAt: room.startedAt,
-    };
+    return { success: true, room, participants: this.getParticipantCount(room.id) };
   }
 
   @SubscribeMessage(RoomEvents.LEAVE)
   @UsePipes(new ZodPipe(leaveRoomSchema))
   async leaveRoom(@ConnectedSocket() client: Socket, @MessageBody() data: LeaveRoomDto): Promise<RoomLeaveResponseDto> {
     const room = await this.roomService.getActiveRoom(data.roomId);
-
     if (!room) {
       throw new WsException({ code: 'ROOM_NOT_FOUND', message: 'Room not found' });
     }
 
-    await client.leave(`room:${room.id}`);
-    await this.roomService.removeUserFromRoom(client.data.user.sub, room.id);
+    const roomName = `room:${room.id}`;
+    const wasDj = await this.roomService.isDj(room.id, client.data.user.sub);
 
-    this.server.to(`room:${room.id}`).emit(RoomEvents.USER_LEFT, {
+    await client.leave(roomName);
+
+    if (wasDj) {
+      const participantIds = await this.getParticipantUserIds(room.id);
+      const updated = await this.roomService.autoAssignDj(room.id, participantIds);
+      this.broadcastStateUpdate(roomName, updated);
+    }
+
+    const freshRoom = await this.roomService.getById(room.id);
+    this.server.to(roomName).emit(RoomEvents.USER_LEFT, {
       userId: client.data.user.sub,
+      room: freshRoom,
+      participants: this.getParticipantCount(room.id),
     });
 
-    return {
-      success: true,
-      roomId: room.id,
-    };
+    return { success: true, roomId: room.id };
   }
 
-  @SubscribeMessage(RoomEvents.SYNC)
+  // ── Queue (DJ only for add/remove, anyone except DJ for request) ──
+
+  @SubscribeMessage(RoomEvents.QUEUE)
   @UsePipes(new ZodPipe(joinRoomSchema))
-  async syncRoom(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<RoomSyncResponseDto> {
-    const room = await this.roomService.getActiveRoom(data.roomId);
+  async getQueue(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<QueueResponseDto> {
+    await this.roomService.getActiveRoom(data.roomId);
+    const queue = await this.roomService.getQueue(data.roomId);
+    return { queue };
+  }
 
-    if (!room) {
-      throw new WsException({ code: 'ROOM_NOT_FOUND', message: 'Room not found' });
-    }
+  @SubscribeMessage(RoomEvents.ADD_SONG)
+  @UsePipes(new ZodPipe(addSongSchema))
+  async addSong(@ConnectedSocket() client: Socket, @MessageBody() data: AddSongDto): Promise<QueueItemResponseDto> {
+    await this.ensureDj(data.roomId, client.data.user.sub);
 
-    return {
-      participants: this.server.sockets.adapter.rooms.get(`room:${room.id}`)?.size ?? 0,
-      currentSong: room.currentSong,
-      currentDj: room.currentDj,
-      playing: room.playing,
-      startedAt: room.startedAt,
-    };
+    const item = await this.roomService.addSongToQueue(data.roomId, data.songId, client.data.user.sub);
+    this.server.to(`room:${data.roomId}`).emit(RoomEvents.SONG_ADDED, { item });
+    return { item };
+  }
+
+  @SubscribeMessage(RoomEvents.REMOVE_SONG)
+  @UsePipes(new ZodPipe(removeSongSchema))
+  async removeSong(@ConnectedSocket() client: Socket, @MessageBody() data: RemoveSongDto): Promise<QueueItemResponseDto> {
+    await this.ensureDj(data.roomId, client.data.user.sub);
+
+    const item = await this.roomService.removeSongFromQueue(data.roomId, data.queueItemId, client.data.user.sub);
+    this.server.to(`room:${data.roomId}`).emit(RoomEvents.SONG_REMOVED, { item });
+    return { item };
+  }
+
+  @SubscribeMessage(RoomEvents.REQUEST_SONG)
+  @UsePipes(new ZodPipe(requestSongSchema))
+  async requestSong(@ConnectedSocket() client: Socket, @MessageBody() data: RequestSongDto): Promise<SongRequestResponseDto> {
+    await this.ensureNotDj(data.roomId, client.data.user.sub);
+
+    const song = await this.roomService.getSongById(data.songId);
+    const user = await this.roomService.getUserById(client.data.user.sub);
+
+    const payload: SongRequestResponseDto = { roomId: data.roomId, song, requestedBy: user };
+    this.server.to(`room:${data.roomId}`).emit(RoomEvents.SONG_REQUESTED, payload);
+    return payload;
+  }
+
+  // ── Playback (DJ only) ──
+
+  @SubscribeMessage(RoomEvents.PLAY)
+  @UsePipes(new ZodPipe(joinRoomSchema))
+  async play(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<DjResponseDto> {
+    const room = await this.roomService.play(data.roomId, client.data.user.sub);
+    const participants = this.getParticipantCount(room.id);
+    this.broadcastStateUpdate(`room:${data.roomId}`, room);
+    return { room, participants };
+  }
+
+  @SubscribeMessage(RoomEvents.PAUSE)
+  @UsePipes(new ZodPipe(joinRoomSchema))
+  async pause(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<DjResponseDto> {
+    const room = await this.roomService.pause(data.roomId, client.data.user.sub);
+    const participants = this.getParticipantCount(room.id);
+    this.broadcastStateUpdate(`room:${data.roomId}`, room);
+    return { room, participants };
+  }
+
+  @SubscribeMessage(RoomEvents.SONG_CHANGED)
+  @UsePipes(new ZodPipe(addSongSchema))
+  async changeSong(@ConnectedSocket() client: Socket, @MessageBody() data: AddSongDto): Promise<DjResponseDto> {
+    const room = await this.roomService.changeSong(data.roomId, data.songId, client.data.user.sub);
+    const participants = this.getParticipantCount(room.id);
+    this.broadcastStateUpdate(`room:${data.roomId}`, room);
+    return { room, participants };
+  }
+
+  // ── DJ management ──
+
+  @SubscribeMessage(RoomEvents.REQUEST_DJ)
+  @UsePipes(new ZodPipe(joinRoomSchema))
+  async requestDj(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<{ success: boolean }> {
+    const user = await this.roomService.getUserById(client.data.user.sub);
+    this.server.to(`room:${data.roomId}`).emit(RoomEvents.DJ_REQUESTED, { user });
+    return { success: true };
+  }
+
+  @SubscribeMessage(RoomEvents.JOIN_DJ)
+  @UsePipes(new ZodPipe(joinRoomSchema))
+  async joinDj(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<DjResponseDto> {
+    const room = await this.roomService.joinAsDj(data.roomId, client.data.user.sub);
+    const participants = this.getParticipantCount(room.id);
+    this.broadcastStateUpdate(`room:${data.roomId}`, room);
+    return { room, participants };
+  }
+
+  @SubscribeMessage(RoomEvents.LEAVE_DJ)
+  @UsePipes(new ZodPipe(joinRoomSchema))
+  async leaveDj(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<DjResponseDto> {
+    await this.roomService.leaveAsDj(data.roomId, client.data.user.sub);
+    const participantIds = await this.getParticipantUserIds(data.roomId);
+    const updated = await this.roomService.autoAssignDj(data.roomId, participantIds);
+    const participants = this.getParticipantCount(updated.id);
+    this.broadcastStateUpdate(`room:${data.roomId}`, updated);
+    return { room: updated, participants };
+  }
+
+  @SubscribeMessage(RoomEvents.ASSIGN_DJ)
+  @UsePipes(new ZodPipe(assignDjSchema))
+  async assignDj(@ConnectedSocket() client: Socket, @MessageBody() data: AssignDjDto): Promise<DjResponseDto> {
+    const room = await this.roomService.assignDj(data.roomId, client.data.user.sub, data.userId);
+    const participants = this.getParticipantCount(room.id);
+    this.broadcastStateUpdate(`room:${data.roomId}`, room);
+    return { room, participants };
   }
 }

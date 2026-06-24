@@ -93,7 +93,13 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           elevation: 0,
           leading: AppIconButton(
             icon: Icons.chevron_left,
-            onTap: () => {Navigator.pop(context)},
+            onTap: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushNamed(context, '/');
+              }
+            },
           ),
         ),
         body: Center(
@@ -120,8 +126,14 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
             elevation: 0,
             pinned: true,
             leading: AppIconButton(
-              icon: Icons.arrow_back_ios_new,
-              onTap: () => Navigator.pop(context),
+              icon: Icons.chevron_left,
+              onTap: () {
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                } else {
+                  Navigator.pushNamed(context, '/');
+                }
+              },
             ),
           ),
           SliverToBoxAdapter(
