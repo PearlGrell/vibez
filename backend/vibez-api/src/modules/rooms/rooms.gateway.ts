@@ -59,16 +59,28 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
         }
         const payload = await this.jwtService.verifyAsync(token);
         socket.data.user = payload;
+        try {
+          const user = await this.roomService.getUserById(payload.sub);
+          socket.data.user.name = user.name;
+        } catch {}
         next();
       } catch {
         next(new Error('Authentication error'));
       }
     });
+
+    server.on('connection', (socket) => {
+      socket.on('disconnecting', () => {
+        this.handleDisconnecting(socket);
+      });
+    });
   }
 
   handleConnection(client: Socket) {}
 
-  async handleDisconnect(client: Socket) {
+  handleDisconnect(client: Socket) {}
+
+  private async handleDisconnecting(client: Socket) {
     for (const r of client.rooms) {
       if (!r.startsWith('room:')) continue;
       const roomId = r.replace('room:', '');
@@ -76,13 +88,22 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
         const wasDj = await this.roomService.isDj(roomId, client.data.user.sub);
         if (wasDj) {
           const participantIds = await this.getParticipantUserIds(roomId, client.id);
-          const updated = await this.roomService.autoAssignDj(roomId, participantIds);
+          const updated = await this.roomService.autoAssignDj(roomId, participantIds, client.data.user.sub);
           this.broadcastStateUpdate(r, updated);
         }
+        const freshRoom = await this.roomService.getById(roomId);
+        const participants = Math.max(0, this.getParticipantCount(roomId) - 1);
+        const participantsInitials = this.getParticipantInitials(roomId, client.id);
+        this.server.to(r).emit(RoomEvents.STATE_UPDATE, {
+          room: freshRoom,
+          participants,
+          participantsInitials,
+        });
         this.server.to(r).emit(RoomEvents.USER_LEFT, {
           userId: client.data.user.sub,
-          room: await this.roomService.getById(roomId),
-          participants: this.getParticipantCount(roomId),
+          room: freshRoom,
+          participants,
+          participantsInitials,
         });
       } catch {}
     }
@@ -106,11 +127,27 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     return ids;
   }
 
+  private getParticipantInitials(roomId: string, excludeSocketId?: string): string[] {
+    const socketIds = this.server.sockets.adapter.rooms.get(`room:${roomId}`);
+    if (!socketIds) return [];
+    const initials: string[] = [];
+    for (const sid of socketIds) {
+      if (sid === excludeSocketId) continue;
+      const s = this.server.sockets.sockets.get(sid);
+      const name = s?.data?.user?.name;
+      if (name) {
+        initials.push(name[0].toUpperCase());
+      }
+    }
+    return initials;
+  }
+
   private broadcastStateUpdate(roomName: string, room: Room) {
     const roomId = roomName.startsWith('room:') ? roomName.replace('room:', '') : roomName;
     this.server.to(`room:${roomId}`).emit(RoomEvents.STATE_UPDATE, {
       room,
       participants: this.getParticipantCount(roomId),
+      participantsInitials: this.getParticipantInitials(roomId)
     });
   }
 
@@ -186,7 +223,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     @MessageBody() data: JoinRoomDto,
   ): Promise<RoomDetailsResponseDto> {
     const room = await this.roomService.getById(data.roomId);
-    return { room, participants: this.getParticipantCount(room.id) };
+    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
   }
 
   // ── Join & leave room ──
@@ -198,7 +235,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const roomName = `room:${room.id}`;
 
     if (client.rooms.has(roomName)) {
-      return { success: true, room, participants: this.getParticipantCount(room.id) };
+      return { success: true, room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
     }
 
     for (const r of client.rooms) {
@@ -208,7 +245,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
         await client.leave(r);
         if (wasDj) {
           const participantIds = await this.getParticipantUserIds(oldRoomId);
-          const updated = await this.roomService.autoAssignDj(oldRoomId, participantIds);
+          const updated = await this.roomService.autoAssignDj(oldRoomId, participantIds, client.data.user.sub);
           this.broadcastStateUpdate(r, updated);
         }
         const oldRoom = await this.roomService.getById(oldRoomId);
@@ -216,18 +253,21 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
           userId: client.data.user.sub,
           room: oldRoom,
           participants: this.getParticipantCount(oldRoomId),
+          participantsInitials: this.getParticipantInitials(oldRoomId)
         });
       }
     }
 
     await client.join(roomName);
+    this.broadcastStateUpdate(roomName, room);
     this.server.to(roomName).emit(RoomEvents.USER_JOINED, {
       userId: client.data.user.sub,
       room,
       participants: this.getParticipantCount(room.id),
+      participantsInitials: this.getParticipantInitials(room.id)
     });
 
-    return { success: true, room, participants: this.getParticipantCount(room.id) };
+    return { success: true, room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
   }
 
   @SubscribeMessage(RoomEvents.LEAVE)
@@ -245,11 +285,12 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
     if (wasDj) {
       const participantIds = await this.getParticipantUserIds(room.id);
-      const updated = await this.roomService.autoAssignDj(room.id, participantIds);
+      const updated = await this.roomService.autoAssignDj(room.id, participantIds, client.data.user.sub);
       this.broadcastStateUpdate(roomName, updated);
     }
 
     const freshRoom = await this.roomService.getById(room.id);
+    this.broadcastStateUpdate(roomName, freshRoom);
     this.server.to(roomName).emit(RoomEvents.USER_LEFT, {
       userId: client.data.user.sub,
       room: freshRoom,
@@ -310,7 +351,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const room = await this.roomService.play(data.roomId, client.data.user.sub);
     const participants = this.getParticipantCount(room.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    return { room, participants };
+    return { room, participants, participantsInitials: this.getParticipantInitials(room.id) };
   }
 
   @SubscribeMessage(RoomEvents.PAUSE)
@@ -319,7 +360,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const room = await this.roomService.pause(data.roomId, client.data.user.sub);
     const participants = this.getParticipantCount(room.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    return { room, participants };
+    return { room, participants, participantsInitials: this.getParticipantInitials(room.id) };
   }
 
   @SubscribeMessage(RoomEvents.SONG_CHANGED)
@@ -328,7 +369,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const room = await this.roomService.changeSong(data.roomId, data.songId, client.data.user.sub);
     const participants = this.getParticipantCount(room.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    return { room, participants };
+    return { room, participants, participantsInitials: this.getParticipantInitials(room.id) };
   }
 
   // ── DJ management ──
@@ -347,7 +388,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const room = await this.roomService.joinAsDj(data.roomId, client.data.user.sub);
     const participants = this.getParticipantCount(room.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    return { room, participants };
+    return { room, participants, participantsInitials: this.getParticipantInitials(room.id) };
   }
 
   @SubscribeMessage(RoomEvents.LEAVE_DJ)
@@ -355,10 +396,10 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   async leaveDj(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<DjResponseDto> {
     await this.roomService.leaveAsDj(data.roomId, client.data.user.sub);
     const participantIds = await this.getParticipantUserIds(data.roomId);
-    const updated = await this.roomService.autoAssignDj(data.roomId, participantIds);
+    const updated = await this.roomService.autoAssignDj(data.roomId, participantIds, client.data.user.sub);
     const participants = this.getParticipantCount(updated.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, updated);
-    return { room: updated, participants };
+    return { room: updated, participants, participantsInitials: this.getParticipantInitials(updated.id) };
   }
 
   @SubscribeMessage(RoomEvents.ASSIGN_DJ)
@@ -367,6 +408,6 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const room = await this.roomService.assignDj(data.roomId, client.data.user.sub, data.userId);
     const participants = this.getParticipantCount(room.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    return { room, participants };
+    return { room, participants, participantsInitials: this.getParticipantInitials(room.id) };
   }
 }

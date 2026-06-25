@@ -272,9 +272,10 @@ export class RoomsService implements OnModuleDestroy {
     return updated;
   }
 
-  async autoAssignDj(roomId: string, participantUserIds: string[]) {
+  async autoAssignDj(roomId: string, participantUserIds: string[], lastDjId: string) {
     const room = await this.getById(roomId);
-    if (participantUserIds.length === 0) {
+    const candidates = participantUserIds.filter(id => id !== lastDjId);
+    if (candidates.length === 0) {
       room.currentDj = null;
       room.playing = false;
       room.currentSong = null;
@@ -284,7 +285,7 @@ export class RoomsService implements OnModuleDestroy {
       this.activeRoomsCache.set(roomId, { value: updated, expiry: Date.now() + this.CACHE_TTL });
       return updated;
     }
-    const randomId = participantUserIds[Math.floor(Math.random() * participantUserIds.length)];
+    const randomId = candidates[Math.floor(Math.random() * candidates.length)];
     const user = await this.userRepo.findOne({ where: { id: randomId } });
     if (!user) {
       return room;

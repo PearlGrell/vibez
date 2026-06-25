@@ -255,7 +255,9 @@ export class UsersService {
         likedAlbums: true,
         likedPlaylists: true,
         followedArtists: true,
-        joinedRooms: true,
+        joinedRooms: {
+          createdBy: true
+        },
         followers: true,
         following: true,
       },

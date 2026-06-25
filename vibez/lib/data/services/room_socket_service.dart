@@ -1,41 +1,62 @@
 import 'dart:async';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibez/core/network/socket_client.dart';
-import 'package:vibez/data/models/room.dart';
-
-/// Provider for [RoomSocketService] to allow dependency injection and easy mocking.
-final roomSocketServiceProvider = Provider<RoomSocketService>((ref) {
-  return RoomSocketService(SocketClient.instance);
-});
+import 'package:vibez/data/models/room_state.dart';
 
 class RoomSocketService {
   final SocketClient _socketClient;
+  final StreamController<RoomState> _stateController =
+      StreamController<RoomState>.broadcast();
+  StreamSubscription? _serverSubscription;
 
-  // Use dependency injection for better testability instead of a hardcoded singleton
-  RoomSocketService(this._socketClient);
-
-  /// Gets full details for a single room.
-  /// Returns a record containing the strongly-typed [Room] and the current participant count.
-  Future<({Room room, int participants})> getRoomDetails(String roomId) async {
-    final response = await _socketClient.emitWithAck('room:details', {'roomId': roomId});
-    final data = Map<String, dynamic>.from(response as Map);
-    
-    return (
-      room: Room.fromJson(data['room'] as Map<String, dynamic>),
-      participants: data['participants'] as int,
-    );
+  RoomSocketService(this._socketClient) {
+    _serverSubscription = _socketClient.stream('room:state_update').listen((data) {
+      final mapData = Map<String, dynamic>.from(data as Map);
+      _stateController.add(RoomState.fromJson(mapData));
+    });
   }
 
-  /// Listens to room state changes (DJ join/leave/assign, play/pause, song change).
-  /// Returns a stream of records containing the updated strongly-typed [Room] and the participant count.
-  Stream<({Room room, int participants})> get roomStateUpdates {
-    return _socketClient.stream('room:state_update').map((data) {
-      final mapData = Map<String, dynamic>.from(data as Map);
-      return (
-        room: Room.fromJson(mapData['room'] as Map<String, dynamic>),
-        participants: mapData['participants'] as int,
-      );
-    });
+  RoomState _parseResponse(dynamic response) {
+    final data = Map<String, dynamic>.from(response as Map);
+    return RoomState.fromJson(data);
+  }
+
+  Future<RoomState> getRoomDetails(String roomId) async {
+    final response = await _socketClient.emitWithAck('room:details', {'roomId': roomId});
+    return _parseResponse(response);
+  }
+
+  Stream<RoomState> get roomStateUpdates => _stateController.stream;
+
+  Future<RoomState> joinRoom(String roomId) async {
+    final response = await _socketClient.emitWithAck('room:join', {'roomId': roomId});
+    final result = _parseResponse(response);
+    _stateController.add(result);
+    return result;
+  }
+
+  Future<void> leaveRoom(String roomId) async {
+    await _socketClient.emitWithAck('room:leave', {'roomId': roomId});
+    final result = await getRoomDetails(roomId);
+    _stateController.add(result);
+  }
+
+  Future<RoomState> joinAsDJ(String roomId) async {
+    final response = await _socketClient.emitWithAck('room:join_dj', {'roomId': roomId});
+    final result = _parseResponse(response);
+    _stateController.add(result);
+    return result;
+  }
+
+  Future<RoomState> leaveAsDJ(String roomId) async {
+    final response = await _socketClient.emitWithAck('room:leave_dj', {'roomId': roomId});
+    final result = _parseResponse(response);
+    _stateController.add(result);
+    return result;
+  }
+
+  void dispose() {
+    _serverSubscription?.cancel();
+    _stateController.close();
   }
 }

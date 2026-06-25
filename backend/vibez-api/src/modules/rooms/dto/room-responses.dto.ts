@@ -7,6 +7,7 @@ export interface RoomJoinResponseDto {
   success: boolean;
   room: Room;
   participants: number;
+  participantsInitials: string[];
 }
 
 export interface RoomLeaveResponseDto {
@@ -18,6 +19,7 @@ export interface RoomLeaveResponseDto {
 export interface RoomDetailsResponseDto {
   room: Room;
   participants: number;
+  participantsInitials: string[];
 }
 
 export interface RoomsResponseDto {
@@ -52,6 +54,7 @@ export interface QueueItemResponseDto {
 export interface DjResponseDto {
   room: Room;
   participants: number;
+  participantsInitials: string[];
 }
 
 export interface SongRequestResponseDto {

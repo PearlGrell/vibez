@@ -28,6 +28,7 @@ class ArtistDetailScreen extends ConsumerStatefulWidget {
 
 class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   Artist? _artist;
+  List<Song> _allSongs = [];
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -44,6 +45,12 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
     });
     try {
       final artist = await ArtistRepository.instance.getArtist(widget.artistId);
+      if (artist != null && artist.songsBrowseId != null && artist.songsBrowseId!.isNotEmpty) {
+        final songs = await ArtistRepository.instance.getArtistSongs(artist.id, artist.songsBrowseId!);
+        _allSongs = songs ?? artist.songs ?? [];
+      } else {
+        _allSongs = artist?.songs ?? [];
+      }
       if (mounted) {
         setState(() {
           _artist = artist;
@@ -252,9 +259,10 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                       if (popularSongs.isNotEmpty)
                         GestureDetector(
                           onTap: () {
+                            final songs = _allSongs.isNotEmpty ? _allSongs : popularSongs;
                             ref
                                 .read(playbackProvider.notifier)
-                                .playSongsFromList(popularSongs, 0);
+                                .playSongsFromList(songs, 0);
                             ref
                                 .read(playbackProvider.notifier)
                                 .setCurrentlyPlaying(
@@ -346,14 +354,20 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                       song.artists?.map((a) => a.name).join(', ') ??
                       artist.name;
 
+                  final allSongs = _allSongs.isNotEmpty ? _allSongs : popularSongs;
+                  final songDuration = song.duration > 0
+                      ? song.duration
+                      : (_allSongs.where((s) => s.id == song.id).firstOrNull?.duration ?? 0);
+
                   return Container(
                     key: ValueKey(song.id),
                     margin: const EdgeInsets.symmetric(vertical: 8),
                     child: InkWell(
                       onTap: () {
+                        final playIndex = allSongs.indexWhere((s) => s.id == song.id);
                         ref
                             .read(playbackProvider.notifier)
-                            .playSongsFromList(popularSongs, index);
+                            .playSongsFromList(allSongs, playIndex >= 0 ? playIndex : 0);
                         ref
                             .read(playbackProvider.notifier)
                             .setCurrentlyPlaying(
@@ -397,7 +411,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    '$songArtistsStr • ${_formatDuration(song.duration)}',
+                                    songArtistsStr,
                                     style: const TextStyle(
                                       color: AppColors.text2,
                                       fontSize: 13,
@@ -408,6 +422,17 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                                 ],
                               ),
                             ),
+                            if (songDuration > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: Text(
+                                  _formatDuration(songDuration),
+                                  style: const TextStyle(
+                                    color: AppColors.text3,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
                             IconButton(
                               icon: Icon(
                                 isSongLiked

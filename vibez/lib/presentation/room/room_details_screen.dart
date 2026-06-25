@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibez/core/router/app_router.dart';
@@ -7,108 +5,68 @@ import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/shadows.dart';
 import 'package:vibez/core/theme/spacing.dart';
-import 'package:vibez/data/models/room.dart';
+import 'package:vibez/core/utils/app_snackbar.dart';
+import 'package:vibez/data/provider/room_provider.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/equalizer_bars.dart';
 import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
-import 'package:vibez/data/services/room_socket_service.dart';
 
-class RoomDetailsScreen extends ConsumerStatefulWidget {
+class RoomDetailsScreen extends ConsumerWidget {
   final String roomId;
   const RoomDetailsScreen({super.key, required this.roomId});
 
   @override
-  ConsumerState<RoomDetailsScreen> createState() => _RoomDetailsScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncRoom = ref.watch(roomProvider(roomId));
 
-class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
-  late Future<({Room room, int participants})> _roomDetailsFuture;
-  late final Stream<({Room room, int participants})> _roomStateStream;
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        ref.read(roomProvider(roomId).notifier).leaveRoom();
+      },
+      child: asyncRoom.when(
+        loading: () => _buildGhostLoading(context, ref),
+        error: (error, _) => _buildError(context, ref, error),
+        data: (viewState) {
+          final user = ref.watch(userProvider);
+          final hasJoined =
+              user?.joinedRooms?.any((e) => e.id == viewState.room.id) ?? false;
+          final isDj = viewState.room.currentDj?.id == user?.id;
+          final isMyRoom = ref
+                  .watch(myRoomsProvider)
+                  .value
+                  ?.any((e) => e.id == viewState.room.id) ??
+              false;
 
-  @override
-  void initState() {
-    super.initState();
-    final socketService = ref.read(roomSocketServiceProvider);
-    _roomDetailsFuture = socketService.getRoomDetails(widget.roomId);
-    _roomStateStream = socketService.roomStateUpdates;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<({Room room, int participants})>(
-      future: _roomDetailsFuture,
-      builder: (context, asyncSnapshot) {
-        if (asyncSnapshot.connectionState == ConnectionState.waiting) {
-          return _buildGhostLoading(context);
-        }
-
-        if (asyncSnapshot.hasError) {
           return Scaffold(
-            appBar: _buildAppBar(context),
-            body: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.wifi_off, size: 48, color: AppColors.text2),
-                  const SizedBox(height: AppSpacing.s4),
-                  Text(
-                    'Could not load room',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.s2),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.s6,
-                    ),
-                    child: Text(
-                      '${asyncSnapshot.error}',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.s4),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _roomDetailsFuture = ref
-                            .read(roomSocketServiceProvider)
-                            .getRoomDetails(widget.roomId);
-                      });
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
+            appBar: _buildAppBar(context, ref, viewState.room),
+            body: _buildBody(
+              context,
+              ref,
+              viewState: viewState,
+              hasJoined: hasJoined,
+              isDj: isDj,
+              isMyRoom: isMyRoom,
+            ),
+            bottomNavigationBar: _buildBottomBar(
+              context,
+              ref,
+              viewState: viewState,
+              isDj: isDj,
             ),
           );
-        }
-
-        final initialData = asyncSnapshot.data;
-        if (initialData == null) {
-          return const Scaffold(body: Center(child: Text('Room not found')));
-        }
-
-        return StreamBuilder<({Room room, int participants})>(
-          stream: _roomStateStream,
-          builder: (context, streamSnapshot) {
-            final room = streamSnapshot.data?.room ?? initialData.room;
-            final participants =
-                streamSnapshot.data?.participants ?? initialData.participants;
-
-            return Scaffold(
-              appBar: _buildAppBar(context, room),
-              body: _buildBody(context, room, participants),
-            );
-          },
-        );
-      },
+        },
+      ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context, [Room? room]) {
+  // ── App Bar ──
+
+  PreferredSizeWidget _buildAppBar(
+    BuildContext context,
+    WidgetRef ref, [
+    Room? room,
+  ]) {
     return AppBar(
       leading: AppIconButton(
         icon: Icons.chevron_left,
@@ -130,11 +88,7 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
                 extra: room,
               );
               if (result == true) {
-                setState(() {
-                  _roomDetailsFuture = ref
-                      .read(roomSocketServiceProvider)
-                      .getRoomDetails(widget.roomId);
-                });
+                ref.read(roomProvider(roomId).notifier).refresh();
               }
             },
           ),
@@ -147,395 +101,695 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
     );
   }
 
-  Widget _buildBody(BuildContext context, Room room, int participants) {
-    return Center(
-      child: Column(
-        children: [
-          Stack(
-            children: [
-              AlbumArtCover(seed: room.name, size: 200),
-              Positioned(
-                bottom: AppSpacing.s3,
-                left: AppSpacing.s4,
-                child: EqualizerBars(
-                  color: Colors.white,
-                  barCount: 5,
-                  barSpacing: 4,
-                  size: 25,
-                ),
-              ),
+  // ── Body ──
 
-              Positioned(
-                top: AppSpacing.s2,
-                left: AppSpacing.s3,
-                child: (room.playing)
-                    ? Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD14948),
-                          borderRadius: AppRadius.pillBorderRadius,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s3,
-                          vertical: AppSpacing.s1,
-                        ),
-                        child: const Text(
-                          "• LIVE",
-                          style: TextStyle(
-                            color: AppColors.text,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      )
-                    : Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          shape: BoxShape.circle,
-                        ),
-                        padding: const EdgeInsets.all(AppSpacing.s1),
-                        child: Icon(
-                          Icons.podcasts_outlined,
-                          size: 16,
-                          color: AppColors.text2,
-                        ),
-                      ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s6),
-          Text(
-            room.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.displayLarge,
-          ),
-          if (room.description.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.s2),
-            Text(
-              room.description,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: AppColors.text2),
-            ),
-          ],
-          const SizedBox(height: AppSpacing.s5),
-          Wrap(
-            direction: Axis.horizontal,
-            spacing: AppSpacing.s3,
-            runSpacing: AppSpacing.s3,
-            children: room.tags.map((e) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border.all(color: AppColors.cardAlt),
-                  borderRadius: AppRadius.pillBorderRadius,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s3,
-                  vertical: AppSpacing.s1,
-                ),
-                child: Text(
-                  e,
-                  style: const TextStyle(color: AppColors.text2, fontSize: 13),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: AppSpacing.s4),
-          if (room.currentDj != null) ...[
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                border: Border.all(color: AppColors.cardAlt),
-                borderRadius: AppRadius.pillBorderRadius,
-              ),
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.s1 / 2,
-                AppSpacing.s1 / 2,
-                AppSpacing.s3,
-                AppSpacing.s1 / 2,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+  Widget _buildBody(
+    BuildContext context,
+    WidgetRef ref, {
+    required RoomViewState viewState,
+    required bool hasJoined,
+    required bool isDj,
+    required bool isMyRoom,
+  }) {
+    final room = viewState.room;
+
+    return RefreshIndicator(
+      onRefresh: () => ref.read(roomProvider(roomId).notifier).refresh(),
+      color: AppColors.primary,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.only(bottom: AppSpacing.s8),
+        child: Column(
+          children: [
+            Center(
+              child: Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.primary,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.all(1.5),
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.surface,
-                      ),
-                      child: Container(
-                        height: 36,
-                        width: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.generateBgColor(
-                            room.currentDj!.username ?? room.currentDj!.name,
-                          ).bg,
-                        ),
-                        child: Center(
-                          child: Text(
-                            room.currentDj!.name[0].toUpperCase(),
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: AppColors.generateTextColor(
-                                    room.currentDj!.username ??
-                                        room.currentDj!.name,
-                                  ),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                        ),
+                  _buildAlbumArt(room),
+                  const SizedBox(height: AppSpacing.s6),
+                  Text(
+                    room.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.displayLarge,
+                  ),
+                  if (room.description.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.s2),
+                    Text(
+                      room.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.text2,
                       ),
                     ),
+                  ],
+                  const SizedBox(height: AppSpacing.s5),
+                  _buildTags(context, room),
+                  const SizedBox(height: AppSpacing.s4),
+                  if (room.currentDj != null) ...[
+                    _buildDjChip(context, room),
+                    const SizedBox(height: AppSpacing.s4),
+                  ],
+                  _buildListeners(
+                    context,
+                    viewState.participants,
+                    viewState.participantsInitials,
                   ),
-                  const SizedBox(width: AppSpacing.s2),
-                  Text(
-                    "@${room.currentDj!.username}",
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.text,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.s1),
-                  Text(
-                    "• DJ",
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
+                  const SizedBox(height: AppSpacing.s5),
+                  _buildInlineActions(
+                    context,
+                    ref,
+                    viewState: viewState,
+                    hasJoined: hasJoined,
+                    isMyRoom: isMyRoom,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: AppSpacing.s6),
-          ],
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (participants == 0) ...[
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.surface, width: 2),
-                    color: AppColors.generateBgColor("No User").bg,
-                  ),
-                  height: 40,
-                  width: 40,
-                  child: Center(
-                    child: Icon(
-                      Icons.person,
-                      color: AppColors.generateTextColor("No User"),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.s3),
-                Text(
-                  "No listeners yet.",
-                  textAlign: TextAlign.center,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(color: AppColors.text2),
-                ),
-              ] else ...[
-                SizedBox(
-                  width: (participants.clamp(0, 5) * 30)
-                      .clamp(40, 130)
-                      .toDouble(),
-                  height: 40,
-                  child: Stack(
-                    children: List.generate(
-                      participants <= 5 ? participants : 5,
-                      (index) {
-                        final randomChar = String.fromCharCode(
-                          65 + Random().nextInt(26),
-                        );
-                        final seed = '$randomChar${Random().nextInt(1000)}';
-                        return Positioned(
-                          left: index * 22,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.surface,
-                                width: 2,
-                              ),
-                              color: AppColors.generateBgColor(seed).bg,
-                            ),
-                            height: 40,
-                            width: 40,
-                            child: Center(
-                              child: Text(
-                                randomChar,
-                                style: TextStyle(
-                                  color: AppColors.generateTextColor(seed),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.s3),
-                RichText(
-                  text: TextSpan(
-                    text: "$participants ",
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: AppColors.text,
-                    ),
-                    children: [
-                      TextSpan(
-                        text: "listening now",
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.normal,
-                          color: AppColors.text2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            if (room.currentSong != null) ...[
+              const SizedBox(height: AppSpacing.s7),
+              _buildNowPlaying(context, room),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Album Art ──
+
+  Widget _buildAlbumArt(Room room) {
+    return Stack(
+      children: [
+        AlbumArtCover(seed: room.name, size: 200),
+        Positioned(
+          bottom: AppSpacing.s3,
+          left: AppSpacing.s4,
+          child: EqualizerBars(
+            color: Colors.white,
+            barCount: 5,
+            barSpacing: 4,
+            size: 25,
           ),
-          const SizedBox(height: AppSpacing.s6),
-          Spacer(),
-          _buildBottomBar(context, room),
+        ),
+        Positioned(
+          top: AppSpacing.s2,
+          left: AppSpacing.s3,
+          child: room.playing
+              ? Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD14948),
+                    borderRadius: AppRadius.pillBorderRadius,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s3,
+                    vertical: AppSpacing.s1,
+                  ),
+                  child: const Text(
+                    "• LIVE",
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )
+              : Container(
+                  decoration: const BoxDecoration(
+                    color: AppColors.surface,
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(AppSpacing.s1),
+                  child: const Icon(
+                    Icons.podcasts_outlined,
+                    size: 16,
+                    color: AppColors.text2,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  // ── Tags ──
+
+  Widget _buildTags(BuildContext context, Room room) {
+    return Wrap(
+      spacing: AppSpacing.s3,
+      runSpacing: AppSpacing.s3,
+      children: room.tags.map((e) {
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border.all(color: AppColors.cardAlt),
+            borderRadius: AppRadius.pillBorderRadius,
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.s3,
+            vertical: AppSpacing.s1,
+          ),
+          child: Text(
+            e,
+            style: const TextStyle(color: AppColors.text2, fontSize: 13),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ── DJ Chip ──
+
+  Widget _buildDjChip(BuildContext context, Room room) {
+    final dj = room.currentDj!;
+    final seed = dj.username ?? dj.name;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.cardAlt),
+        borderRadius: AppRadius.pillBorderRadius,
+      ),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.s1 / 2,
+        AppSpacing.s1 / 2,
+        AppSpacing.s3,
+        AppSpacing.s1 / 2,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primary,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(1.5),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surface,
+              ),
+              child: Container(
+                height: 36,
+                width: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.generateBgColor(seed).bg,
+                ),
+                child: Center(
+                  child: Text(
+                    dj.name[0].toUpperCase(),
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: AppColors.generateTextColor(seed),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.s2),
+          Text(
+            "@${dj.username}",
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.text,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.s1),
+          Text(
+            "• DJ",
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.text2,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildBottomBar(BuildContext context, Room room) {
-    final isMyRoom =
-        ref.watch(myRoomsProvider).value?.any((e) => e.id == room.id) ?? false;
+  // ── Listeners ──
 
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.s4),
-        child: Consumer(
-          builder: (context, ref, child) {
-            final user = ref.watch(userProvider);
+  Widget _buildListeners(
+    BuildContext context,
+    int participants,
+    List<String> participantsInitials,
+  ) {
+    if (participants == 0) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.surface, width: 2),
+              color: AppColors.generateBgColor("No User").bg,
+            ),
+            height: 40,
+            width: 40,
+            child: Center(
+              child: Icon(
+                Icons.person,
+                color: AppColors.generateTextColor("No User"),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.s3),
+          Text(
+            "No listeners yet.",
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.text2,
+            ),
+          ),
+        ],
+      );
+    }
 
-            final hasJoined =
-                user?.joinedRooms?.any((e) => e.id == room.id) ?? false;
-
-            final actions = <Widget>[
-              if (!isMyRoom)
-                _actionButton(
-                  context,
-                  icon: hasJoined ? Icons.check : Icons.add,
-                  label: hasJoined ? "Following" : "Follow",
-                  onTap: () {
-                    if (hasJoined) {
-                      ref.read(userProvider.notifier).unfollowRoom(room.id);
-                    } else {
-                      ref.read(userProvider.notifier).followRoom(room);
-                    }
-                  },
-                ),
-
-              if (room.currentDj == null)
-                _actionButton(
-                  context,
-                  icon: Icons.speaker_group_rounded,
-                  label: "Join as DJ",
-                  onTap: () {},
-                ),
-            ];
-
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-
-                return Wrap(
-                  spacing: AppSpacing.s3,
-                  runSpacing: AppSpacing.s3,
-                  children: [
-                    for (final action in actions)
-                      SizedBox(
-                        width: actions.length == 1
-                            ? width
-                            : (width - AppSpacing.s3) / 2,
-                        child: action,
-                      ),
-
-                    SizedBox(
-                      width: width,
-                      child: _actionButton(
-                        context,
-                        icon: Icons.headphones_outlined,
-                        label: "Join Room",
-                        isPrimary: true,
-                        onTap: () {},
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: (participantsInitials.length.clamp(0, 5) * 30)
+              .clamp(40, 130)
+              .toDouble(),
+          height: 40,
+          child: Stack(
+            children: List.generate(
+              participantsInitials.length.clamp(0, 5),
+              (index) {
+                final initial = participantsInitials[index];
+                return Positioned(
+                  left: index * 22,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.surface, width: 2),
+                      color: AppColors.generateBgColor(initial).bg,
+                    ),
+                    height: 40,
+                    width: 40,
+                    child: Center(
+                      child: Text(
+                        initial,
+                        style: TextStyle(
+                          color: AppColors.generateTextColor(initial),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                 );
               },
-            );
-          },
+            ),
+          ),
         ),
+        const SizedBox(width: AppSpacing.s2),
+        RichText(
+          text: TextSpan(
+            text: "$participants ",
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: AppColors.text,
+            ),
+            children: [
+              TextSpan(
+                text: "listening now",
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.normal,
+                  color: AppColors.text2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Inline Actions ──
+
+  Widget _buildInlineActions(
+    BuildContext context,
+    WidgetRef ref, {
+    required RoomViewState viewState,
+    required bool hasJoined,
+    required bool isMyRoom,
+  }) {
+    final notifier = ref.read(roomProvider(roomId).notifier);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: _pillButton(
+              context,
+              icon: isMyRoom || hasJoined ? Icons.check : Icons.add,
+              label: isMyRoom || hasJoined ? "Following" : "Follow",
+              onTap: isMyRoom
+                  ? null
+                  : () async {
+                      try {
+                        await notifier.toggleFollow();
+                      } catch (_) {
+                        AppSnackbar.show(
+                          message: "Failed to update follow",
+                          type: .error,
+                        );
+                      }
+                    },
+            ),
+          ),
+          const SizedBox(width: AppSpacing.s3),
+          Expanded(
+            flex: 3,
+            child: _pillButton(
+              context,
+              icon: Icons.headphones_outlined,
+              label: viewState.isInRoom ? "Listening" : "Join room",
+              isPrimary: true,
+              onTap: viewState.isInRoom
+                  ? null
+                  : () async {
+                      try {
+                        await notifier.joinRoom();
+                        AppSnackbar.show(
+                          message: "Joined the room",
+                          type: .success,
+                        );
+                      } catch (_) {
+                        AppSnackbar.show(
+                          message: "Failed to join room",
+                          type: .error,
+                        );
+                      }
+                    },
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _actionButton(
+  Widget _pillButton(
     BuildContext context, {
     required IconData icon,
     required String label,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     bool isPrimary = false,
   }) {
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: AppRadius.pillBorderRadius,
-          onTap: onTap,
-          child: Container(
-            height: 56,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s6),
-            decoration: BoxDecoration(
-              color: isPrimary ? AppColors.primary : AppColors.surface,
-              borderRadius: AppRadius.pillBorderRadius,
-              border: isPrimary ? null : Border.all(color: AppColors.cardAlt),
-              boxShadow: isPrimary ? AppShadows.shGlowMd : null,
-            ),
-            child: Row(
-              mainAxisAlignment: .center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon),
-                const SizedBox(width: AppSpacing.s2),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: AppRadius.pillBorderRadius,
+        onTap: onTap,
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            color: isPrimary ? AppColors.primary : AppColors.surface,
+            border: isPrimary ? null : Border.all(color: AppColors.cardAlt),
+            borderRadius: AppRadius.pillBorderRadius,
+            boxShadow: isPrimary ? AppShadows.shGlowMd : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 20),
+              const SizedBox(width: AppSpacing.s2),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildGhostLoading(BuildContext context) {
+  // ── Now Playing ──
+
+  Widget _buildNowPlaying(BuildContext context, Room room) {
+    final song = room.currentSong!;
+    final artistName =
+        song.artists?.map((e) => e.name).join(', ') ?? 'Unknown Artist';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Now playing",
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s3),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.s3),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border.all(color: AppColors.cardAlt),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Row(
+              children: [
+                AlbumArtCover(
+                  seed: song.title,
+                  size: 52,
+                  radius: AppRadius.xs,
+                  child: song.thumbnail != null && song.thumbnail!.isNotEmpty
+                      ? Image.network(
+                          song.thumbnail!,
+                          width: 52,
+                          height: 52,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: AppSpacing.s3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.text,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        artistName,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.text2),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                if (room.playing)
+                  Padding(
+                    padding: const EdgeInsets.only(left: AppSpacing.s2),
+                    child: EqualizerBars(
+                      color: AppColors.primary,
+                      barCount: 4,
+                      barWidth: 3,
+                      barSpacing: 2,
+                      size: 22,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Bottom Bar ──
+
+  Widget _buildBottomBar(
+    BuildContext context,
+    WidgetRef ref, {
+    required RoomViewState viewState,
+    required bool isDj,
+  }) {
+    final notifier = ref.read(roomProvider(roomId).notifier);
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.s4),
+        child: Row(
+          children: [
+            if (viewState.isInRoom && isDj) ...[
+              Expanded(
+                child: _bottomBarButton(
+                  context,
+                  icon: Icons.speaker_group_rounded,
+                  label: "Leave as DJ",
+                  onTap: () async {
+                    try {
+                      await notifier.leaveDj();
+                      AppSnackbar.show(
+                        message: "Left as DJ",
+                        type: .success,
+                      );
+                    } catch (_) {
+                      AppSnackbar.show(
+                        message: "Failed to leave as DJ",
+                        type: .error,
+                      );
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: AppSpacing.s3),
+            ],
+            Expanded(
+              child: _bottomBarButton(
+                context,
+                icon: viewState.isInRoom
+                    ? Icons.logout_rounded
+                    : Icons.headphones_outlined,
+                label: viewState.isInRoom ? "Leave" : "Join",
+                suffix: " · ${viewState.participants} listening",
+                isPrimary: true,
+                onTap: () async {
+                  try {
+                    if (viewState.isInRoom) {
+                      await notifier.leaveRoom();
+                      AppSnackbar.show(
+                        message: "Left the room",
+                        type: .success,
+                      );
+                    } else {
+                      await notifier.joinRoom();
+                      AppSnackbar.show(
+                        message: "Joined the room",
+                        type: .success,
+                      );
+                    }
+                  } catch (_) {
+                    AppSnackbar.show(
+                      message: viewState.isInRoom
+                          ? "Failed to leave room"
+                          : "Failed to join room",
+                      type: .error,
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomBarButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    String? suffix,
+    bool isPrimary = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: AppRadius.pillBorderRadius,
+        onTap: onTap,
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            color: isPrimary ? AppColors.primary : AppColors.surface,
+            border: isPrimary ? null : Border.all(color: AppColors.cardAlt),
+            borderRadius: AppRadius.pillBorderRadius,
+            boxShadow: isPrimary ? AppShadows.shGlowMd : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 20),
+              const SizedBox(width: AppSpacing.s2),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (suffix != null)
+                Text(
+                  suffix,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Error ──
+
+  Widget _buildError(BuildContext context, WidgetRef ref, Object error) {
     return Scaffold(
-      appBar: _buildAppBar(context),
+      appBar: _buildAppBar(context, ref),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off, size: 48, color: AppColors.text2),
+            const SizedBox(height: AppSpacing.s4),
+            Text(
+              'Could not load room',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.s2),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s6),
+              child: Text(
+                '$error',
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppColors.text2),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s4),
+            TextButton(
+              onPressed: () => ref.invalidate(roomProvider(roomId)),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Ghost Loading ──
+
+  Widget _buildGhostLoading(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: _buildAppBar(context, ref),
       body: Center(
         child: Column(
           children: [
@@ -602,27 +856,12 @@ class _RoomDetailsScreenState extends ConsumerState<RoomDetailsScreen> {
           AppSpacing.s4,
           kBottomNavigationBarHeight,
         ),
-        child: Row(
-          spacing: AppSpacing.s6,
-          children: [
-            Container(
-              height: 56,
-              width: 150,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: AppRadius.pillBorderRadius,
-              ),
-            ),
-            Expanded(
-              child: Container(
-                height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: AppRadius.pillBorderRadius,
-                ),
-              ),
-            ),
-          ],
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: AppRadius.pillBorderRadius,
+          ),
         ),
       ),
     );
