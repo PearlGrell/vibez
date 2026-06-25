@@ -18,6 +18,7 @@ class User {
   final List<Playlist>? likedPlaylists;
   final List<Artist>? followedArtists;
   final List<Room>? joinedRooms;
+  final List<Room>? myRooms;
   final List<User>? followers;
   final List<User>? following;
   final DateTime? createdAt;
@@ -37,6 +38,7 @@ class User {
     this.likedPlaylists,
     this.followedArtists,
     this.joinedRooms,
+    this.myRooms,
     this.followers,
     this.following,
     this.createdAt,
@@ -57,6 +59,7 @@ class User {
     List<Playlist>? likedPlaylists,
     List<Artist>? followedArtists,
     List<Room>? joinedRooms,
+    List<Room>? myRooms,
     List<User>? followers,
     List<User>? following,
     DateTime? createdAt,
@@ -76,6 +79,7 @@ class User {
       likedPlaylists: likedPlaylists ?? this.likedPlaylists,
       followedArtists: followedArtists ?? this.followedArtists,
       joinedRooms: joinedRooms ?? this.joinedRooms,
+      myRooms: myRooms ?? this.myRooms,
       followers: followers ?? this.followers,
       following: following ?? this.following,
       createdAt: createdAt ?? this.createdAt,

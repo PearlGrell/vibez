@@ -4,15 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
-import 'package:vibez/data/models/room.dart';
 import 'package:vibez/data/provider/user_provider.dart';
-import 'package:vibez/data/repositories/room_repository.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/data/models/user.dart';
-
-final myRoomsProvider = FutureProvider<List<Room>>((ref) async {
-  return await RoomRepository.instance.getMyRooms();
-});
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -43,7 +37,6 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(myRoomsProvider);
           await ref.read(userProvider.notifier).fetchMe();
         },
         color: AppColors.primary,
@@ -431,16 +424,14 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
               type: LibraryItemType.artist,
               onTap: () => context.push('/artist/${a.id}'),
             )),
-      ...ref.watch(myRoomsProvider).maybeWhen(
-            data: (rooms) => rooms.map((r) => LibraryItem(
-                  id: r.id,
-                  title: r.name,
-                  subtitle: 'My Room',
-                  type: LibraryItemType.myRoom,
-                  onTap: () => context.push('/room/${r.id}'),
-                )),
-            orElse: () => [],
-          ),
+      if (profile.myRooms != null)
+        ...profile.myRooms!.map((r) => LibraryItem(
+              id: r.id,
+              title: r.name,
+              subtitle: 'My Room',
+              type: LibraryItemType.myRoom,
+              onTap: () => context.push('/room/${r.id}'),
+            )),
       if (profile.joinedRooms != null)
         ...profile.joinedRooms!
             .where((r) => r.createdById != profile.id && r.createdBy?.id != profile.id)

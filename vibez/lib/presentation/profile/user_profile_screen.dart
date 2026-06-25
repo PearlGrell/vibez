@@ -582,7 +582,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     const SizedBox(height: AppSpacing.s4),
                     const Center(child: CircularProgressIndicator(color: AppColors.primary)),
                   ],
-                  error: (_, __) => [],
+                  error: (_, _) => [],
                 ),
                 const SizedBox(height: 140),
                 ],

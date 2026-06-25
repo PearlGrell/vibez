@@ -39,7 +39,7 @@ class AlbumArtCover extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           CustomPaint(painter: MonogramPainter(_letterFor(seed), c.mono)),
-          if (child != null) child!,
+          ?child,
         ],
       ),
     );

@@ -1,143 +1,134 @@
-
-
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:vibez/core/network/socket_client.dart';
 import 'package:vibez/data/models/room.dart';
+import 'package:vibez/data/models/room_state.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
-import 'package:vibez/data/services/room_socket_service.dart';
+import 'package:vibez/data/provider/user_provider.dart';
 
-final roomSocketServiceProvider = Provider<RoomSocketService>((ref) {
-  final service = RoomSocketService(SocketClient.instance);
-  ref.onDispose(service.dispose);
-  return service;
+enum RoomStatus { loading, ready, error }
+
+final roomProvider = ChangeNotifierProvider.autoDispose
+    .family<RoomProvider, String>((ref, roomId) {
+  return RoomProvider(ref, roomId);
 });
 
-final roomProvider = AsyncNotifierProvider.autoDispose
-    .family<RoomNotifier, RoomViewState, String>(RoomNotifier.new);
-
-class RoomViewState {
-  final Room room;
-  final int participants;
-  final List<String> participantsInitials;
-  final bool isInRoom;
-
-  const RoomViewState({
-    required this.room,
-    required this.participants,
-    required this.participantsInitials,
-    required this.isInRoom,
-  });
-
-  RoomViewState copyWith({
-    Room? room,
-    int? participants,
-    List<String>? participantsInitials,
-    bool? isInRoom,
-  }) {
-    return RoomViewState(
-      room: room ?? this.room,
-      participants: participants ?? this.participants,
-      participantsInitials: participantsInitials ?? this.participantsInitials,
-      isInRoom: isInRoom ?? this.isInRoom,
-    );
-  }
-}
-
-class RoomNotifier
-    extends AutoDisposeFamilyAsyncNotifier<RoomViewState, String> {
+class RoomProvider extends ChangeNotifier {
+  final Ref _ref;
+  final String roomId;
+  final SocketClient _socket = SocketClient.instance;
   StreamSubscription? _sub;
 
-  @override
-  Future<RoomViewState> build(String roomId) async {
-    ref.onDispose(() {
-      _sub?.cancel();
-      ref.read(roomSocketServiceProvider).leaveRoom(roomId);
-    });
+  RoomStatus status = RoomStatus.loading;
+  Room? room;
+  int participants = 0;
+  List<String> participantsInitials = [];
+  bool isInRoom = false;
+  Object? error;
 
-    ref.read(playbackProvider.notifier).pause();
-    ref.read(playbackProvider.notifier).clearQueue();
+  RoomProvider(this._ref, this.roomId) {
+    _init();
+  }
 
-    final service = ref.read(roomSocketServiceProvider);
-    final initial = await service.getRoomDetails(roomId);
+  Future<void> _init() async {
+    try {
+      final response =
+          await _socket.emitWithAck('room:details', {'roomId': roomId});
+      final state =
+          RoomState.fromJson(Map<String, dynamic>.from(response as Map));
 
-    _sub?.cancel();
-    _sub = service.roomStateUpdates.listen((update) {
-      final current = state.valueOrNull;
-      if (current == null) return;
-      state = AsyncData(current.copyWith(
-        room: update.room,
-        participants: update.participants,
-        participantsInitials: update.participantsInitials,
-      ));
-    });
+      room = state.room;
+      participants = state.participants;
+      participantsInitials = state.participantsInitials;
 
-    final userId = ref.read(userProvider)?.id;
-    final isInRoom =
-        userId != null && initial.room.currentDj?.id == userId;
+      final userId = _ref.read(userProvider)?.id;
+      isInRoom = userId != null && room?.currentDj?.id == userId;
+      status = RoomStatus.ready;
+      notifyListeners();
 
-    return RoomViewState(
-      room: initial.room,
-      participants: initial.participants,
-      participantsInitials: initial.participantsInitials,
-      isInRoom: isInRoom,
-    );
+      _sub = _socket.stream('room:state_update').listen((data) {
+        final update =
+            RoomState.fromJson(Map<String, dynamic>.from(data as Map));
+        room = update.room;
+        participants = update.participants;
+        participantsInitials = update.participantsInitials;
+        notifyListeners();
+      });
+    } catch (e) {
+      error = e;
+      status = RoomStatus.error;
+      notifyListeners();
+    }
   }
 
   Future<void> joinRoom() async {
-    final current = state.valueOrNull;
-    if (current == null) return;
+    _ref.read(playbackProvider.notifier).pause();
+    _ref.read(playbackProvider.notifier).clearQueue();
 
-    final service = ref.read(roomSocketServiceProvider);
-    await service.joinRoom(arg);
-    if (current.room.currentDj == null) {
-      await service.joinAsDJ(arg);
+    await _socket.emitWithAck('room:join', {'roomId': roomId});
+    if (room?.currentDj == null) {
+      await _socket.emitWithAck('room:join_dj', {'roomId': roomId});
     }
-    state = AsyncData(current.copyWith(isInRoom: true));
+    isInRoom = true;
+    notifyListeners();
   }
 
   Future<void> leaveRoom() async {
-    final current = state.valueOrNull;
-    if (current == null) return;
-
-    final service = ref.read(roomSocketServiceProvider);
-    final userId = ref.read(userProvider)?.id;
-    if (current.room.currentDj?.id == userId) {
-      await service.leaveAsDJ(arg);
+    final userId = _ref.read(userProvider)?.id;
+    if (room?.currentDj?.id == userId) {
+      await _socket.emitWithAck('room:leave_dj', {'roomId': roomId});
     }
-    await service.leaveRoom(arg);
-    state = AsyncData(current.copyWith(isInRoom: false));
+    await _socket.emitWithAck('room:leave', {'roomId': roomId});
+    isInRoom = false;
+    notifyListeners();
   }
 
   Future<void> leaveDj() async {
-    await ref.read(roomSocketServiceProvider).leaveAsDJ(arg);
+    await _socket.emitWithAck('room:leave_dj', {'roomId': roomId});
   }
 
   Future<void> toggleFollow() async {
-    final current = state.valueOrNull;
-    if (current == null) return;
+    if (room == null) return;
 
-    final userNotifier = ref.read(userProvider.notifier);
-    final user = ref.read(userProvider);
+    final userNotifier = _ref.read(userProvider.notifier);
+    final user = _ref.read(userProvider);
     final isFollowing =
-        user?.joinedRooms?.any((e) => e.id == current.room.id) ?? false;
+        user?.joinedRooms?.any((e) => e.id == room!.id) ?? false;
 
     if (isFollowing) {
-      await userNotifier.unfollowRoom(current.room.id);
+      await userNotifier.unfollowRoom(room!.id);
     } else {
-      await userNotifier.followRoom(current.room);
+      await userNotifier.followRoom(room!);
     }
   }
 
   Future<void> refresh() async {
-    final service = ref.read(roomSocketServiceProvider);
-    final updated = await service.getRoomDetails(arg);
-    final current = state.valueOrNull;
-    state = AsyncData(RoomViewState(
-      room: updated.room,
-      participants: updated.participants,
-      participantsInitials: updated.participantsInitials,
-      isInRoom: current?.isInRoom ?? false,
-    ));
+    try {
+      final response =
+          await _socket.emitWithAck('room:details', {'roomId': roomId});
+      final state =
+          RoomState.fromJson(Map<String, dynamic>.from(response as Map));
+
+      room = state.room;
+      participants = state.participants;
+      participantsInitials = state.participantsInitials;
+      status = RoomStatus.ready;
+      error = null;
+      notifyListeners();
+    } catch (e) {
+      error = e;
+      status = RoomStatus.error;
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _socket.emit('room:leave', {'roomId': roomId});
+    super.dispose();
   }
 }

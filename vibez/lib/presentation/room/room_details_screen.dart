@@ -18,45 +18,46 @@ class RoomDetailsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final asyncRoom = ref.watch(roomProvider(roomId));
+    final roomState = ref.watch(roomProvider(roomId));
 
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
-        ref.read(roomProvider(roomId).notifier).leaveRoom();
+        ref.read(roomProvider(roomId)).leaveRoom();
       },
-      child: asyncRoom.when(
-        loading: () => _buildGhostLoading(context, ref),
-        error: (error, _) => _buildError(context, ref, error),
-        data: (viewState) {
-          final user = ref.watch(userProvider);
-          final hasJoined =
-              user?.joinedRooms?.any((e) => e.id == viewState.room.id) ?? false;
-          final isDj = viewState.room.currentDj?.id == user?.id;
-          final isMyRoom = ref
-                  .watch(myRoomsProvider)
-                  .value
-                  ?.any((e) => e.id == viewState.room.id) ??
-              false;
+      child: () {
+        if (roomState.status == RoomStatus.loading) {
+          return _buildGhostLoading(context, ref);
+        }
+        if (roomState.status == RoomStatus.error) {
+          return _buildError(context, ref, roomState.error!);
+        }
 
-          return Scaffold(
-            appBar: _buildAppBar(context, ref, viewState.room),
-            body: _buildBody(
-              context,
-              ref,
-              viewState: viewState,
-              hasJoined: hasJoined,
-              isDj: isDj,
-              isMyRoom: isMyRoom,
-            ),
-            bottomNavigationBar: _buildBottomBar(
-              context,
-              ref,
-              viewState: viewState,
-              isDj: isDj,
-            ),
-          );
-        },
-      ),
+        final room = roomState.room!;
+        final user = ref.watch(userProvider);
+        final hasJoined =
+            user?.joinedRooms?.any((e) => e.id == room.id) ?? false;
+        final isDj = room.currentDj?.id == user?.id;
+        final isMyRoom =
+            user?.myRooms?.any((e) => e.id == room.id) ?? false;
+
+        return Scaffold(
+          appBar: _buildAppBar(context, ref, room),
+          body: _buildBody(
+            context,
+            ref,
+            roomState: roomState,
+            hasJoined: hasJoined,
+            isDj: isDj,
+            isMyRoom: isMyRoom,
+          ),
+          bottomNavigationBar: _buildBottomBar(
+            context,
+            ref,
+            roomState: roomState,
+            isDj: isDj,
+          ),
+        );
+      }(),
     );
   }
 
@@ -88,7 +89,7 @@ class RoomDetailsScreen extends ConsumerWidget {
                 extra: room,
               );
               if (result == true) {
-                ref.read(roomProvider(roomId).notifier).refresh();
+                ref.read(roomProvider(roomId)).refresh();
               }
             },
           ),
@@ -106,15 +107,15 @@ class RoomDetailsScreen extends ConsumerWidget {
   Widget _buildBody(
     BuildContext context,
     WidgetRef ref, {
-    required RoomViewState viewState,
+    required RoomProvider roomState,
     required bool hasJoined,
     required bool isDj,
     required bool isMyRoom,
   }) {
-    final room = viewState.room;
+    final room = roomState.room!;
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(roomProvider(roomId).notifier).refresh(),
+      onRefresh: () => ref.read(roomProvider(roomId)).refresh(),
       color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(
@@ -154,14 +155,14 @@ class RoomDetailsScreen extends ConsumerWidget {
                   ],
                   _buildListeners(
                     context,
-                    viewState.participants,
-                    viewState.participantsInitials,
+                    roomState.participants,
+                    roomState.participantsInitials,
                   ),
                   const SizedBox(height: AppSpacing.s5),
                   _buildInlineActions(
                     context,
                     ref,
-                    viewState: viewState,
+                    roomState: roomState,
                     hasJoined: hasJoined,
                     isMyRoom: isMyRoom,
                   ),
@@ -433,11 +434,11 @@ class RoomDetailsScreen extends ConsumerWidget {
   Widget _buildInlineActions(
     BuildContext context,
     WidgetRef ref, {
-    required RoomViewState viewState,
+    required RoomProvider roomState,
     required bool hasJoined,
     required bool isMyRoom,
   }) {
-    final notifier = ref.read(roomProvider(roomId).notifier);
+    final notifier = ref.read(roomProvider(roomId));
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
@@ -469,9 +470,9 @@ class RoomDetailsScreen extends ConsumerWidget {
             child: _pillButton(
               context,
               icon: Icons.headphones_outlined,
-              label: viewState.isInRoom ? "Listening" : "Join room",
+              label: roomState.isInRoom ? "Listening" : "Join room",
               isPrimary: true,
-              onTap: viewState.isInRoom
+              onTap: roomState.isInRoom
                   ? null
                   : () async {
                       try {
@@ -625,10 +626,10 @@ class RoomDetailsScreen extends ConsumerWidget {
   Widget _buildBottomBar(
     BuildContext context,
     WidgetRef ref, {
-    required RoomViewState viewState,
+    required RoomProvider roomState,
     required bool isDj,
   }) {
-    final notifier = ref.read(roomProvider(roomId).notifier);
+    final notifier = ref.read(roomProvider(roomId));
 
     return SafeArea(
       top: false,
@@ -636,7 +637,7 @@ class RoomDetailsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(AppSpacing.s4),
         child: Row(
           children: [
-            if (viewState.isInRoom && isDj) ...[
+            if (roomState.isInRoom && isDj) ...[
               Expanded(
                 child: _bottomBarButton(
                   context,
@@ -663,15 +664,15 @@ class RoomDetailsScreen extends ConsumerWidget {
             Expanded(
               child: _bottomBarButton(
                 context,
-                icon: viewState.isInRoom
+                icon: roomState.isInRoom
                     ? Icons.logout_rounded
                     : Icons.headphones_outlined,
-                label: viewState.isInRoom ? "Leave" : "Join",
-                suffix: " · ${viewState.participants} listening",
+                label: roomState.isInRoom ? "Leave" : "Join",
+                suffix: " · ${roomState.participants} listening",
                 isPrimary: true,
                 onTap: () async {
                   try {
-                    if (viewState.isInRoom) {
+                    if (roomState.isInRoom) {
                       await notifier.leaveRoom();
                       AppSnackbar.show(
                         message: "Left the room",
@@ -686,7 +687,7 @@ class RoomDetailsScreen extends ConsumerWidget {
                     }
                   } catch (_) {
                     AppSnackbar.show(
-                      message: viewState.isInRoom
+                      message: roomState.isInRoom
                           ? "Failed to leave room"
                           : "Failed to join room",
                       type: .error,
@@ -776,7 +777,7 @@ class RoomDetailsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.s4),
             TextButton(
-              onPressed: () => ref.invalidate(roomProvider(roomId)),
+              onPressed: () => ref.read(roomProvider(roomId)).refresh(),
               child: const Text('Retry'),
             ),
           ],

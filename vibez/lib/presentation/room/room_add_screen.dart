@@ -8,7 +8,7 @@ import 'package:vibez/data/models/room.dart';
 import 'package:vibez/data/repositories/room_repository.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/equalizer_bars.dart';
-import 'package:vibez/presentation/profile/profile_screen.dart';
+import 'package:vibez/data/provider/user_provider.dart';
 
 class AddRoomScreen extends ConsumerStatefulWidget {
   final Room? room;
@@ -102,7 +102,7 @@ class _AddRoomScreenState extends ConsumerState<AddRoomScreen> {
     });
 
     if (result != null) {
-      ref.invalidate(myRoomsProvider);
+      ref.read(userProvider.notifier).fetchMyRooms();
       AppSnackbar.show(
         message: _isEditing
             ? "Room updated successfully!"

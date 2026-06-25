@@ -6,6 +6,7 @@ import 'package:vibez/data/models/playlist.dart';
 import 'package:vibez/data/models/room.dart';
 import 'package:vibez/data/provider/song_cache_provider.dart';
 import 'package:vibez/data/repositories/playlist_repository.dart';
+import 'package:vibez/data/repositories/room_repository.dart';
 import '../models/user.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/user_repository.dart';
@@ -24,6 +25,13 @@ class UserNotifier extends Notifier<User?> {
   Future<void> fetchMe() async {
     final user = await UserRepository.instance.me();
     state = user;
+    await fetchMyRooms();
+  }
+
+  Future<void> fetchMyRooms() async {
+    if (state == null) return;
+    final rooms = await RoomRepository.instance.getMyRooms();
+    state = state?.copyWith(myRooms: rooms);
   }
 
   Future<bool> login({required String email, required String password}) async {
