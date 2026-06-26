@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
-import 'package:vibez/core/theme/shadows.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
 import 'package:vibez/data/models/queue_item.dart';
@@ -176,14 +175,23 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildNowPlaying(context, roomRef),
+          const SizedBox(height: AppSpacing.s4),
+          _buildLeaveAsDjButton(context, roomRef),
           const SizedBox(height: AppSpacing.s7),
           _buildUpNextHeader(context, roomRef),
           const SizedBox(height: AppSpacing.s3),
           ...roomRef.queue.asMap().entries.map(
-            (entry) =>
-                _buildQueueItem(context, entry.key, entry.value, () async {
-                  await roomRef.removeSong(entry.value.id);
-                }),
+            (entry) => _buildQueueItem(
+              context,
+              entry.key,
+              entry.value,
+              () async {
+                await roomRef.playItem(entry.value);
+              },
+              () async {
+                await roomRef.removeSong(entry.value.id);
+              },
+            ),
           ),
           const SizedBox(height: AppSpacing.s8),
         ],
@@ -275,65 +283,74 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.s5),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: 0.5, // TODO: Add progress
-              backgroundColor: AppColors.card,
-              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-              minHeight: 3,
+          StreamBuilder(
+            stream: Stream.periodic(
+              Duration(milliseconds: 1),
+              (_) => DateTime.now(),
             ),
-          ),
-          const SizedBox(height: AppSpacing.s2),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "0:00", // TODO: Add elapsed
-                style: const TextStyle(color: AppColors.text2, fontSize: 12),
-              ),
-              Text(
-                _formatDuration(Duration(seconds: currentSong.duration)),
-                style: const TextStyle(color: AppColors.text2, fontSize: 12),
-              ),
-            ],
+            builder: (context, snapshot) {
+              final current = snapshot.data ?? DateTime.now();
+              final startedAt = roomRef.room?.startedAt;
+              final durationMs =
+                  (roomRef.room?.currentSong?.duration ?? 0) * 1000;
+
+              final elapsedMs = startedAt == null
+                  ? 0
+                  : current
+                        .difference(startedAt)
+                        .inMilliseconds
+                        .clamp(0, durationMs);
+
+              final progress = durationMs == 0 ? 0.0 : elapsedMs / durationMs;
+
+              return Column(
+                mainAxisSize: .min,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: AppColors.card,
+                      valueColor: const AlwaysStoppedAnimation(
+                        AppColors.primary,
+                      ),
+                      minHeight: 3,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.s2),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _formatDuration(
+                          Duration(milliseconds: elapsedMs),
+                        ), // TODO: Add elapsed
+                        style: const TextStyle(
+                          color: AppColors.text2,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        _formatDuration(
+                          Duration(seconds: currentSong.duration),
+                        ),
+                        style: const TextStyle(
+                          color: AppColors.text2,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: AppSpacing.s4),
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AppIconButton(icon: Icons.skip_previous_rounded, onTap: () {}),
-              const SizedBox(width: AppSpacing.s5),
-              GestureDetector(
-                onTap: () async {
-                  if (roomRef.room?.playing == true) {
-                  } else {
-                  }
-                },
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: AppShadows.shGlowMd,
-                  ),
-                  child: Container(
-                    width: 58,
-                    height: 58,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      roomRef.room?.playing == true
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      color: AppColors.text,
-                      size: 34,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s5),
-              AppIconButton(icon: Icons.skip_next_rounded, onTap: () {}),
+              Expanded(child: _buildPlayNextButton(context, roomRef)),
+              const SizedBox(width: AppSpacing.s3),
+              Expanded(child: _buildStopButton(context, roomRef)),
             ],
           ),
         ],
@@ -436,100 +453,105 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
     BuildContext context,
     int index,
     QueueItem item,
+    Function() onTap,
     Function() onRemove,
   ) {
     final isDj = item.addedBy.id == ref.watch(userProvider)?.id;
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.s2),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.s2,
-        vertical: AppSpacing.s3,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.5),
-        border: Border.all(color: AppColors.hairlineDark),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 24,
-            child: Text(
-              '${index + 1}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.text2,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.s2),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s2,
+          vertical: AppSpacing.s3,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surface.withValues(alpha: 0.5),
+          border: Border.all(color: AppColors.hairlineDark),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              child: Text(
+                '${index + 1}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.text2,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.s3),
-          AlbumArtCover(
-            seed: item.song.title,
-            size: 56,
-            radius: AppRadius.sm,
-            child:
-                item.song.thumbnail != null && item.song.thumbnail!.isNotEmpty
-                ? Image.network(
-                    item.song.thumbnail!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox.shrink(),
-                  )
-                : null,
-          ),
-          const SizedBox(width: AppSpacing.s3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.song.title,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.text,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                RichText(
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  text: TextSpan(
-                    text:
-                        item.song.artists?.map((e) => e.name).join(",") ??
-                        "Unknown Artist",
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
-                    children: [
-                      const TextSpan(text: ' · '),
-                      TextSpan(
-                        text: isDj
-                            ? 'added by DJ'
-                            : 'req @${item.addedBy.name}',
-                        style: const TextStyle(color: AppColors.danger),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            const SizedBox(width: AppSpacing.s3),
+            AlbumArtCover(
+              seed: item.song.title,
+              size: 56,
+              radius: AppRadius.sm,
+              child:
+                  item.song.thumbnail != null && item.song.thumbnail!.isNotEmpty
+                  ? Image.network(
+                      item.song.thumbnail!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const SizedBox.shrink(),
+                    )
+                  : null,
             ),
-          ),
-          _buildSmallIconButton(
-            icon: Icons.delete_outline,
-            color: AppColors.danger,
-            onTap: () async {
-              await onRemove();
-              AppSnackbar.show(
-                message: "Removed ${item.song.title} from Queue",
-                type: .success,
-              );
-            },
-          ),
-        ],
+            const SizedBox(width: AppSpacing.s3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.song.title,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  RichText(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    text: TextSpan(
+                      text:
+                          item.song.artists?.map((e) => e.name).join(",") ??
+                          "Unknown Artist",
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
+                      children: [
+                        const TextSpan(text: ' · '),
+                        TextSpan(
+                          text: isDj
+                              ? 'added by DJ'
+                              : 'req @${item.addedBy.name}',
+                          style: const TextStyle(color: AppColors.danger),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _buildSmallIconButton(
+              icon: Icons.delete_outline,
+              color: AppColors.danger,
+              onTap: () async {
+                await onRemove();
+                AppSnackbar.show(
+                  message: "Removed ${item.song.title} from Queue",
+                  type: AppSnackType.success,
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1089,7 +1111,7 @@ class _AddToQueueSheetState extends State<_AddToQueueSheet> {
                           setState(() => _addingId = null);
                           AppSnackbar.show(
                             message: 'Added ${song.title}',
-                            type: .success,
+                            type: AppSnackType.success,
                           );
                         }
                       } catch (_) {
@@ -1108,6 +1130,267 @@ class _AddToQueueSheetState extends State<_AddToQueueSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+Widget _buildPlayNextButton(BuildContext context, RoomProvider roomRef) {
+  final hasNext = roomRef.queue.isNotEmpty;
+  return Material(
+    color: hasNext
+        ? AppColors.primary
+        : AppColors.primary.withValues(alpha: 0.5),
+    borderRadius: AppRadius.pillBorderRadius,
+    child: InkWell(
+      onTap: hasNext
+          ? () async {
+              try {
+                roomRef.playNext();
+              } catch (e) {
+                if (context.mounted) {
+                  AppSnackbar.show(
+                    message: "Failed to play next song",
+                    type: AppSnackType.error,
+                  );
+                }
+              }
+            }
+          : () {
+              AppSnackbar.show(
+                message: "Add more songs to the queue to play next.",
+                type: .warning,
+              );
+            },
+      borderRadius: AppRadius.pillBorderRadius,
+      child: Container(
+        height: 48,
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.skip_next_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Play next',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _buildStopButton(BuildContext context, RoomProvider roomRef) {
+  final isPlaying = roomRef.room?.playing == true;
+  return Material(
+    color: const Color(0xFF2A1215),
+    borderRadius: AppRadius.pillBorderRadius,
+    child: InkWell(
+      onTap: () async {
+        try {
+          await roomRef.stop();
+        } catch (e) {
+          if (context.mounted) {
+            AppSnackbar.show(
+              message: "Failed to stop playback",
+              type: AppSnackType.error,
+            );
+          }
+        }
+      },
+      borderRadius: AppRadius.pillBorderRadius,
+      child: Container(
+        height: 48,
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: isPlaying
+                ? const Color(0xFF6B2428)
+                : const Color(0xFF6B2428).withValues(alpha: 0.5),
+          ),
+          borderRadius: AppRadius.pillBorderRadius,
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.stop_rounded,
+              color: isPlaying
+                  ? AppColors.danger
+                  : AppColors.danger.withValues(alpha: 0.5),
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Stop',
+              style: TextStyle(
+                color: isPlaying
+                    ? AppColors.danger
+                    : AppColors.danger.withValues(alpha: 0.5),
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _buildLeaveAsDjButton(BuildContext context, RoomProvider roomRef) {
+  return Material(
+    color: AppColors.surface,
+    borderRadius: AppRadius.pillBorderRadius,
+    child: InkWell(
+      onTap: () async {
+        final shouldLeave = await showDialog<bool>(
+          context: context,
+          barrierColor: Colors.transparent,
+          builder: (context) => const _LeaveDjDialog(),
+        );
+        if (shouldLeave == true && context.mounted) {
+          try {
+            await roomRef.leaveDj();
+            if (context.mounted) {
+              Navigator.of(context).pop();
+            }
+          } catch (e) {
+            if (context.mounted) {
+              AppSnackbar.show(
+                message: "Failed to leave as DJ",
+                type: AppSnackType.error,
+              );
+            }
+          }
+        }
+      },
+      borderRadius: AppRadius.pillBorderRadius,
+      child: Container(
+        height: 48,
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.hairlineDark),
+          borderRadius: AppRadius.pillBorderRadius,
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.person_outline_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Leave as DJ',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _LeaveDjDialog extends StatelessWidget {
+  const _LeaveDjDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+      child: Dialog(
+        backgroundColor: AppColors.card.withValues(alpha: 0.85),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  color: AppColors.primary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Step down as DJ?',
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'You will remain in the room as a listener. Another listener will be automatically assigned as the DJ.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.text2,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  child: const Text('Step down'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.text,
+                    side: const BorderSide(color: AppColors.hairlineDark),
+                    backgroundColor: AppColors.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

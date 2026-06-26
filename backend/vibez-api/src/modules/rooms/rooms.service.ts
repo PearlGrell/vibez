@@ -27,16 +27,19 @@ export class RoomsService implements OnModuleDestroy {
     @InjectRepository(QueueItem)
     private readonly queueRepo: Repository<QueueItem>,
     @Inject()
-    private readonly songService: SongsService
+    private readonly songService: SongsService,
   ) {
-    this.cleanupInterval = setInterval(() => {
-      const now = Date.now();
-      for (const [id, item] of this.activeRoomsCache.entries()) {
-        if (item.expiry <= now) {
-          this.activeRoomsCache.delete(id);
+    this.cleanupInterval = setInterval(
+      () => {
+        const now = Date.now();
+        for (const [id, item] of this.activeRoomsCache.entries()) {
+          if (item.expiry <= now) {
+            this.activeRoomsCache.delete(id);
+          }
         }
-      }
-    }, 1000 * 60 * 10);
+      },
+      1000 * 60 * 10,
+    );
   }
 
   onModuleDestroy() {
@@ -235,25 +238,14 @@ export class RoomsService implements OnModuleDestroy {
     return updated;
   }
 
-  async play(roomId: string, userId: string) {
-    const room = await this.getById(roomId);
-    if (!room.currentDj || room.currentDj.id !== userId) {
-      throw new ForbiddenException('Only the DJ can control playback');
-    }
-    room.playing = true;
-    room.startedAt = new Date();
-    room.updatedAt = new Date();
-    const updated = await this.roomRepo.save(room);
-    this.activeRoomsCache.set(roomId, { value: updated, expiry: Date.now() + this.CACHE_TTL });
-    return updated;
-  }
-
-  async pause(roomId: string, userId: string) {
+  async stop(roomId: string, userId: string) {
     const room = await this.getById(roomId);
     if (!room.currentDj || room.currentDj.id !== userId) {
       throw new ForbiddenException('Only the DJ can control playback');
     }
     room.playing = false;
+    room.currentSong = null;
+    room.startedAt = null;
     room.updatedAt = new Date();
     const updated = await this.roomRepo.save(room);
     this.activeRoomsCache.set(roomId, { value: updated, expiry: Date.now() + this.CACHE_TTL });
@@ -270,7 +262,6 @@ export class RoomsService implements OnModuleDestroy {
       throw new NotFoundException('Song not found');
     }
 
-    // Ensure the song exists in DB for FK constraint
     const persistedSong = await this.songService.findOrCreate(song.id, song.title, {
       duration: song.duration,
       thumbnail: song.thumbnail,
@@ -288,7 +279,7 @@ export class RoomsService implements OnModuleDestroy {
 
   async autoAssignDj(roomId: string, participantUserIds: string[], lastDjId: string) {
     const room = await this.getById(roomId);
-    const candidates = participantUserIds.filter(id => id !== lastDjId);
+    const candidates = participantUserIds.filter((id) => id !== lastDjId);
     if (candidates.length === 0) {
       room.currentDj = null;
       room.playing = false;

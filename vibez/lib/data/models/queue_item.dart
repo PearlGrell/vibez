@@ -27,4 +27,9 @@ class QueueItem {
           : null,
     );
   }
+
+  @override
+  String toString() {
+    return "id: $id, song: ${song.title}, addedBy: ${addedBy.name}, position: $position, addedAt: $addedAt";
+  }
 }

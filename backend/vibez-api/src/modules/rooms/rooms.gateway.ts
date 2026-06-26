@@ -405,19 +405,10 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
   // ── Playback (DJ only) ──
 
-  @SubscribeMessage(RoomEvents.PLAY)
+  @SubscribeMessage(RoomEvents.STOP_SONG)
   @UsePipes(new ZodPipe(joinRoomSchema))
   async play(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<DjResponseDto> {
-    const room = await this.roomService.play(data.roomId, client.data.user.sub);
-    this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    this.broadcastRoomSummary(room);
-    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
-  }
-
-  @SubscribeMessage(RoomEvents.PAUSE)
-  @UsePipes(new ZodPipe(joinRoomSchema))
-  async pause(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<DjResponseDto> {
-    const room = await this.roomService.pause(data.roomId, client.data.user.sub);
+    const room = await this.roomService.stop(data.roomId, client.data.user.sub);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
     this.broadcastRoomSummary(room);
     return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };

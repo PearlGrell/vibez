@@ -24,6 +24,7 @@ class RoomProvider extends ChangeNotifier {
   StreamSubscription? _sub;
   StreamSubscription? _globalSub;
   StreamSubscription? _queueSub;
+  StreamSubscription? _connectionSub;
 
   RoomStatus status = RoomStatus.loading;
   Room? room;
@@ -74,11 +75,18 @@ class RoomProvider extends ChangeNotifier {
         queue =
             (map['queue'] as List?)
                 ?.map(
-                  (e) => QueueItem.fromJson(Map<String, dynamic>.from(e as Map)),
+                  (e) =>
+                      QueueItem.fromJson(Map<String, dynamic>.from(e as Map)),
                 )
                 .toList() ??
             [];
         notifyListeners();
+      });
+
+      _connectionSub = _socket.connectionStream().listen((connected) {
+        if (connected && isInRoom) {
+          _rejoinRoom();
+        }
       });
 
       _globalSub = _socket.stream('rooms:update').listen((data) {
@@ -100,6 +108,18 @@ class RoomProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _rejoinRoom() async {
+    try {
+      await _socket.emitWithAck('room:join', {'roomId': roomId});
+      final userId = _ref.read(userProvider)?.id;
+      if (room?.currentDj?.id == userId) {
+        await _socket.emitWithAck('room:join_dj', {'roomId': roomId});
+      }
+      await refresh();
+      await _fetchQueue();
+    } catch (_) {}
+  }
+
   Future<void> _fetchQueue() async {
     try {
       final response = await _socket.emitWithAck('room:queue', {
@@ -118,20 +138,48 @@ class RoomProvider extends ChangeNotifier {
   }
 
   Future<void> addSong(String songId) async {
+    if (room?.currentSong == null) {
+      await songChanged(songId);
+    } else {
       await _socket.emitWithAck('room:add_song', {
         'roomId': roomId,
         'songId': songId,
       });
-  }
-  
-  Future<void> removeSong(String queueItemId) async {
-      await _socket.emitWithAck('room:remove_song', {
-        'roomId': roomId,
-        'queueItemId': queueItemId,
-      });
-      notifyListeners();
+    }
   }
 
+  Future<void> songChanged(String songId) async {
+    await _socket.emitWithAck('room:song_changed', {
+      'roomId': roomId,
+      'songId': songId,
+    });
+  }
+
+  Future<void> playNext() async {
+    final queueItem = queue.first;
+    await Future.wait([
+      songChanged(queueItem.song.id),
+      removeSong(queueItem.id),
+    ]);
+  }
+
+  Future<void> playItem(QueueItem queueItem) async {
+    await Future.wait([
+      songChanged(queueItem.song.id),
+      removeSong(queueItem.id),
+    ]);
+  }
+
+  Future<void> stop() async {
+    await _socket.emitWithAck('room:stop', {'roomId': roomId});
+  }
+
+  Future<void> removeSong(String queueItemId) async {
+    await _socket.emitWithAck('room:remove_song', {
+      'roomId': roomId,
+      'queueItemId': queueItemId,
+    });
+  }
 
   Future<void> joinRoom() async {
     _ref.read(playbackProvider.notifier).pause();
@@ -201,6 +249,7 @@ class RoomProvider extends ChangeNotifier {
     _sub?.cancel();
     _globalSub?.cancel();
     _queueSub?.cancel();
+    _connectionSub?.cancel();
     super.dispose();
   }
 }
