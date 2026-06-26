@@ -1,11 +1,12 @@
-import { ForbiddenException, Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Room } from './entities/room.entity';
 import { QueueItem } from './entities/queue-item.entity';
 import { User } from '../users/entities/user.entity';
-import { Song } from '../songs/entities/song.entity';
+
 import { ILike, Repository } from 'typeorm';
 import { UpdateRoomDto } from './dto/update-room.dto';
+import { SongsService } from '../songs/songs.service';
 
 interface CacheItem<T> {
   value: T;
@@ -25,8 +26,8 @@ export class RoomsService implements OnModuleDestroy {
     private readonly userRepo: Repository<User>,
     @InjectRepository(QueueItem)
     private readonly queueRepo: Repository<QueueItem>,
-    @InjectRepository(Song)
-    private readonly songRepo: Repository<Song>,
+    @Inject()
+    private readonly songService: SongsService
   ) {
     this.cleanupInterval = setInterval(() => {
       const now = Date.now();
@@ -57,7 +58,7 @@ export class RoomsService implements OnModuleDestroy {
   }
 
   async getSongById(id: string) {
-    const song = await this.songRepo.findOne({ where: { id }, relations: { artists: true } });
+    const song = await this.songService.findById(id);
     if (!song) throw new NotFoundException('Song not found');
     return song;
   }
@@ -141,13 +142,17 @@ export class RoomsService implements OnModuleDestroy {
   }
 
   async addSongToQueue(roomId: string, songId: string, userId: string) {
-    const song = await this.songRepo.findOne({
-      where: { id: songId },
-      relations: { artists: true },
-    });
+    const song = await this.songService.findById(songId);
     if (!song) {
       throw new NotFoundException('Song not found');
     }
+
+    await this.songService.findOrCreate(song.id, song.title, {
+      duration: song.duration,
+      thumbnail: song.thumbnail,
+      year: song.year,
+      artists: song.artists || [],
+    } as any);
 
     const lastItem = await this.queueRepo.findOne({
       where: { roomId },
@@ -176,8 +181,9 @@ export class RoomsService implements OnModuleDestroy {
     if (!item) {
       throw new NotFoundException('Queue item not found');
     }
+    const removedItem = { ...item };
     await this.queueRepo.remove(item);
-    return item;
+    return removedItem;
   }
 
   async isDj(roomId: string, userId: string): Promise<boolean> {
@@ -259,11 +265,19 @@ export class RoomsService implements OnModuleDestroy {
     if (!room.currentDj || room.currentDj.id !== userId) {
       throw new ForbiddenException('Only the DJ can change songs');
     }
-    const song = await this.songRepo.findOne({ where: { id: songId }, relations: { artists: true } });
+    const song = await this.songService.findById(songId);
     if (!song) {
       throw new NotFoundException('Song not found');
     }
-    room.currentSong = song;
+
+    // Ensure the song exists in DB for FK constraint
+    const persistedSong = await this.songService.findOrCreate(song.id, song.title, {
+      duration: song.duration,
+      thumbnail: song.thumbnail,
+      year: song.year,
+      artists: song.artists || [],
+    } as any);
+    room.currentSong = persistedSong;
     room.playing = true;
     room.startedAt = new Date();
     room.updatedAt = new Date();

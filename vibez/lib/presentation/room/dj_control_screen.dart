@@ -1,177 +1,50 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/shadows.dart';
 import 'package:vibez/core/theme/spacing.dart';
+import 'package:vibez/core/utils/app_snackbar.dart';
+import 'package:vibez/data/models/queue_item.dart';
+import 'package:vibez/data/models/request_item.dart';
+import 'package:vibez/data/models/search_result.dart';
+import 'package:vibez/data/provider/room_provider.dart';
+import 'package:vibez/data/provider/user_provider.dart';
+import 'package:vibez/data/repositories/search_repository.dart';
+import 'package:vibez/presentation/common/skeleton.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/equalizer_bars.dart';
 import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
 
-class _QueueItem {
-  final String title;
-  final String artist;
-  final String requestedBy;
-  final String artSeed;
-
-  const _QueueItem({
-    required this.title,
-    required this.artist,
-    required this.requestedBy,
-    required this.artSeed,
-  });
-}
-
-class _RequestItem {
-  final String title;
-  final String artist;
-  final String duration;
-  final String requestedBy;
-  final String timeAgo;
-  final String artSeed;
-
-  const _RequestItem({
-    required this.title,
-    required this.artist,
-    required this.duration,
-    required this.requestedBy,
-    required this.timeAgo,
-    required this.artSeed,
-  });
-}
-
-class _SearchSongItem {
-  final String title;
-  final String artist;
-  final String duration;
-  final String artSeed;
-
-  const _SearchSongItem({
-    required this.title,
-    required this.artist,
-    required this.duration,
-    required this.artSeed,
-  });
-}
-
-class DjControlScreen extends StatefulWidget {
+class DjControlScreen extends ConsumerStatefulWidget {
   final String roomId;
   const DjControlScreen({super.key, required this.roomId});
 
   @override
-  State<DjControlScreen> createState() => _DjControlScreenState();
+  ConsumerState<DjControlScreen> createState() => _DjControlScreenState();
 }
 
-class _DjControlScreenState extends State<DjControlScreen> {
+class _DjControlScreenState extends ConsumerState<DjControlScreen> {
   int _selectedTab = 0;
-  bool _isPlaying = true;
-  final double _progress = 0.59;
-
-  static const _currentSong = (
-    title: 'Von Dutch',
-    artist: 'Charli xcx',
-    elapsed: '1:41',
-    total: '2:48',
-    artSeed: 'Von Dutch',
-  );
-
-  static const _queue = [
-    _QueueItem(
-      title: 'Bad Decisions',
-      artist: 'PinkPantheress',
-      requestedBy: 'mira',
-      artSeed: 'Bad Decisions',
-    ),
-    _QueueItem(
-      title: 'Simulation',
-      artist: 'Skee Mask',
-      requestedBy: 'dj',
-      artSeed: 'Simulation',
-    ),
-    _QueueItem(
-      title: 'Voyager',
-      artist: 'Daft Punk',
-      requestedBy: 'kaze',
-      artSeed: 'Voyager',
-    ),
-    _QueueItem(
-      title: 'Smalltown Boy',
-      artist: 'Jamie xx edit',
-      requestedBy: 'lola',
-      artSeed: 'Smalltown Boy',
-    ),
-  ];
-
-  static const _requests = [
-    _RequestItem(
-      title: 'Nights',
-      artist: 'Frank Ocean',
-      duration: '5:07',
-      requestedBy: 'zara',
-      timeAgo: 'just now',
-      artSeed: 'Nights',
-    ),
-    _RequestItem(
-      title: 'Limerence',
-      artist: 'Yves Tumor',
-      duration: '3:18',
-      requestedBy: 'zara',
-      timeAgo: 'just now',
-      artSeed: 'Limerence',
-    ),
-    _RequestItem(
-      title: 'Midnight City',
-      artist: 'M83',
-      duration: '4:04',
-      requestedBy: 'juno',
-      timeAgo: 'just now',
-      artSeed: 'Midnight City',
-    ),
-    _RequestItem(
-      title: 'Crystalised',
-      artist: 'The xx',
-      duration: '3:21',
-      requestedBy: 'sora',
-      timeAgo: '1m',
-      artSeed: 'Crystalised',
-    ),
-    _RequestItem(
-      title: 'After Hours',
-      artist: 'Kaytranada',
-      duration: '3:31',
-      requestedBy: 'deftone',
-      timeAgo: '2m',
-      artSeed: 'After Hours',
-    ),
-  ];
-
-  static const _searchSongs = [
-    _SearchSongItem(title: 'Von Dutch', artist: 'Charli xcx', duration: '2:48', artSeed: 'Von Dutch'),
-    _SearchSongItem(title: 'Bad Decisions', artist: 'PinkPantheress', duration: '2:22', artSeed: 'Bad Decisions'),
-    _SearchSongItem(title: 'After Hours', artist: 'Kaytranada', duration: '3:31', artSeed: 'After Hours'),
-    _SearchSongItem(title: 'Midnight City', artist: 'M83', duration: '4:04', artSeed: 'Midnight City'),
-    _SearchSongItem(title: 'Glue', artist: 'Bicep', duration: '5:18', artSeed: 'Glue'),
-    _SearchSongItem(title: 'Nights', artist: 'Frank Ocean', duration: '5:07', artSeed: 'Nights'),
-    _SearchSongItem(title: 'Simulation', artist: 'Skee Mask', duration: '4:46', artSeed: 'Simulation'),
-    _SearchSongItem(title: 'Smalltown Boy', artist: 'Jamie xx edit', duration: '3:53', artSeed: 'Smalltown Boy'),
-    _SearchSongItem(title: 'Limerence', artist: 'Yves Tumor', duration: '3:18', artSeed: 'Limerence'),
-  ];
 
   @override
   Widget build(BuildContext context) {
+    final roomRef = ref.watch(roomProvider(widget.roomId));
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(context),
+            _buildHeader(context, roomRef),
             const SizedBox(height: AppSpacing.s4),
             _buildTabBar(context),
             const SizedBox(height: AppSpacing.s4),
             Expanded(
               child: _selectedTab == 0
-                  ? _buildBoothTab(context)
+                  ? _buildBoothTab(context, roomRef)
                   : _buildRequestsTab(context),
             ),
           ],
@@ -182,7 +55,7 @@ class _DjControlScreenState extends State<DjControlScreen> {
 
   // ── Header ──
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, RoomProvider roomRef) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(0, AppSpacing.s1, AppSpacing.s4, 0),
       child: Row(
@@ -210,7 +83,7 @@ class _DjControlScreenState extends State<DjControlScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '3AM in Tokyo',
+                  roomRef.room?.name ?? "",
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: AppColors.text,
@@ -261,7 +134,7 @@ class _DjControlScreenState extends State<DjControlScreen> {
           Expanded(child: _buildTab('Booth', 0)),
           const SizedBox(width: AppSpacing.s2),
           Expanded(
-            child: _buildTab('Requests · ${_requests.length}', 1),
+            child: _buildTab('Requests · ${0}', 1), // TODO: add requests number
           ),
         ],
       ),
@@ -276,9 +149,7 @@ class _DjControlScreenState extends State<DjControlScreen> {
         height: 48,
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : AppColors.surface,
-          border: isSelected
-              ? null
-              : Border.all(color: AppColors.hairlineDark),
+          border: isSelected ? null : Border.all(color: AppColors.hairlineDark),
           borderRadius: AppRadius.mdBorderRadius,
         ),
         child: Center(
@@ -297,19 +168,22 @@ class _DjControlScreenState extends State<DjControlScreen> {
 
   // ── Booth Tab ──
 
-  Widget _buildBoothTab(BuildContext context) {
+  Widget _buildBoothTab(BuildContext context, RoomProvider roomRef) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildNowPlaying(context),
+          _buildNowPlaying(context, roomRef),
           const SizedBox(height: AppSpacing.s7),
-          _buildUpNextHeader(context),
+          _buildUpNextHeader(context, roomRef),
           const SizedBox(height: AppSpacing.s3),
-          ..._queue.asMap().entries.map(
-            (entry) => _buildQueueItem(context, entry.key, entry.value),
+          ...roomRef.queue.asMap().entries.map(
+            (entry) =>
+                _buildQueueItem(context, entry.key, entry.value, () async {
+                  await roomRef.removeSong(entry.value.id);
+                }),
           ),
           const SizedBox(height: AppSpacing.s8),
         ],
@@ -319,7 +193,11 @@ class _DjControlScreenState extends State<DjControlScreen> {
 
   // ── Now Playing ──
 
-  Widget _buildNowPlaying(BuildContext context) {
+  Widget _buildNowPlaying(BuildContext context, RoomProvider roomRef) {
+    final currentSong = roomRef.room?.currentSong;
+    if (currentSong == null) {
+      return _buildEmptyState(context);
+    }
     return Container(
       padding: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
@@ -334,9 +212,19 @@ class _DjControlScreenState extends State<DjControlScreen> {
               Stack(
                 children: [
                   AlbumArtCover(
-                    seed: _currentSong.artSeed,
-                    size: 80,
+                    seed: currentSong.title,
+                    size: 56,
                     radius: AppRadius.sm,
+                    child:
+                        currentSong.thumbnail != null &&
+                            currentSong.thumbnail!.isNotEmpty
+                        ? Image.network(
+                            currentSong.thumbnail!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox.shrink(),
+                          )
+                        : null,
                   ),
                   Positioned(
                     bottom: AppSpacing.s2,
@@ -367,7 +255,7 @@ class _DjControlScreenState extends State<DjControlScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      _currentSong.title,
+                      currentSong.title,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.text,
@@ -375,10 +263,11 @@ class _DjControlScreenState extends State<DjControlScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _currentSong.artist,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.text2,
-                      ),
+                      currentSong.artists?.map((e) => e.name).join(",") ??
+                          "Unknown Artist",
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: AppColors.text2),
                     ),
                   ],
                 ),
@@ -389,7 +278,7 @@ class _DjControlScreenState extends State<DjControlScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
-              value: _progress,
+              value: 0.5, // TODO: Add progress
               backgroundColor: AppColors.card,
               valueColor: const AlwaysStoppedAnimation(AppColors.primary),
               minHeight: 3,
@@ -400,11 +289,11 @@ class _DjControlScreenState extends State<DjControlScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _currentSong.elapsed,
+                "0:00", // TODO: Add elapsed
                 style: const TextStyle(color: AppColors.text2, fontSize: 12),
               ),
               Text(
-                _currentSong.total,
+                _formatDuration(Duration(seconds: currentSong.duration)),
                 style: const TextStyle(color: AppColors.text2, fontSize: 12),
               ),
             ],
@@ -413,13 +302,14 @@ class _DjControlScreenState extends State<DjControlScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AppIconButton(
-                icon: Icons.skip_previous_rounded,
-                onTap: () {},
-              ),
+              AppIconButton(icon: Icons.skip_previous_rounded, onTap: () {}),
               const SizedBox(width: AppSpacing.s5),
               GestureDetector(
-                onTap: () => setState(() => _isPlaying = !_isPlaying),
+                onTap: () async {
+                  if (roomRef.room?.playing == true) {
+                  } else {
+                  }
+                },
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
@@ -433,7 +323,7 @@ class _DjControlScreenState extends State<DjControlScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      _isPlaying
+                      roomRef.room?.playing == true
                           ? Icons.pause_rounded
                           : Icons.play_arrow_rounded,
                       color: AppColors.text,
@@ -443,10 +333,7 @@ class _DjControlScreenState extends State<DjControlScreen> {
                 ),
               ),
               const SizedBox(width: AppSpacing.s5),
-              AppIconButton(
-                icon: Icons.skip_next_rounded,
-                onTap: () {},
-              ),
+              AppIconButton(icon: Icons.skip_next_rounded, onTap: () {}),
             ],
           ),
         ],
@@ -454,9 +341,57 @@ class _DjControlScreenState extends State<DjControlScreen> {
     );
   }
 
+  Widget _buildEmptyState(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.s8,
+          horizontal: AppSpacing.s6,
+        ),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.cardAlt),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.s4),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surface,
+              ),
+              child: const Icon(
+                Icons.headphones_outlined,
+                size: 28,
+                color: AppColors.text2,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s5),
+            Text(
+              "This room is quiet",
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppSpacing.s2),
+            Text(
+              "Nothing's playing right now. Step in to\nstart the music and others can join you.",
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.text2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Up Next Header ──
 
-  Widget _buildUpNextHeader(BuildContext context) {
+  Widget _buildUpNextHeader(BuildContext context, RoomProvider roomRef) {
     return Row(
       children: [
         const Icon(Icons.queue_music_rounded, color: AppColors.text, size: 22),
@@ -470,12 +405,12 @@ class _DjControlScreenState extends State<DjControlScreen> {
         ),
         const SizedBox(width: AppSpacing.s2),
         Text(
-          '${_queue.length}/5',
+          '${roomRef.queue.length}/5',
           style: const TextStyle(color: AppColors.text2, fontSize: 14),
         ),
         const Spacer(),
         GestureDetector(
-          onTap: () => _showAddToQueueSheet(context),
+          onTap: () => _showAddToQueueSheet(context, roomRef),
           child: Row(
             children: const [
               Icon(Icons.add, color: AppColors.text, size: 18),
@@ -497,14 +432,23 @@ class _DjControlScreenState extends State<DjControlScreen> {
 
   // ── Queue Item ──
 
-  Widget _buildQueueItem(BuildContext context, int index, _QueueItem item) {
+  Widget _buildQueueItem(
+    BuildContext context,
+    int index,
+    QueueItem item,
+    Function() onRemove,
+  ) {
+    final isDj = item.addedBy.id == ref.watch(userProvider)?.id;
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.s2),
-      padding: const EdgeInsets.all(AppSpacing.s3),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s2,
+        vertical: AppSpacing.s3,
+      ),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surface.withValues(alpha: 0.5),
         border: Border.all(color: AppColors.hairlineDark),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Row(
         children: [
@@ -521,14 +465,27 @@ class _DjControlScreenState extends State<DjControlScreen> {
             ),
           ),
           const SizedBox(width: AppSpacing.s3),
-          AlbumArtCover(seed: item.artSeed, size: 48, radius: AppRadius.xs),
+          AlbumArtCover(
+            seed: item.song.title,
+            size: 56,
+            radius: AppRadius.sm,
+            child:
+                item.song.thumbnail != null && item.song.thumbnail!.isNotEmpty
+                ? Image.network(
+                    item.song.thumbnail!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox.shrink(),
+                  )
+                : null,
+          ),
           const SizedBox(width: AppSpacing.s3),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.title,
+                  item.song.title,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: AppColors.text,
@@ -541,14 +498,18 @@ class _DjControlScreenState extends State<DjControlScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   text: TextSpan(
-                    text: item.artist,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.text2,
-                    ),
+                    text:
+                        item.song.artists?.map((e) => e.name).join(",") ??
+                        "Unknown Artist",
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
                     children: [
                       const TextSpan(text: ' · '),
                       TextSpan(
-                        text: 'req @${item.requestedBy}',
+                        text: isDj
+                            ? 'added by DJ'
+                            : 'req @${item.addedBy.name}',
                         style: const TextStyle(color: AppColors.danger),
                       ),
                     ],
@@ -558,14 +519,15 @@ class _DjControlScreenState extends State<DjControlScreen> {
             ),
           ),
           _buildSmallIconButton(
-            icon: Icons.keyboard_arrow_up,
-            color: AppColors.text2,
-            onTap: () {},
-          ),
-          _buildSmallIconButton(
             icon: Icons.delete_outline,
             color: AppColors.danger,
-            onTap: () {},
+            onTap: () async {
+              await onRemove();
+              AppSnackbar.show(
+                message: "Removed ${item.song.title} from Queue",
+                type: .success,
+              );
+            },
           ),
         ],
       ),
@@ -593,6 +555,60 @@ class _DjControlScreenState extends State<DjControlScreen> {
   // ── Requests Tab ──
 
   Widget _buildRequestsTab(BuildContext context) {
+    // TODO: Wire up to actual requests list from roomRef
+    final requests = <RequestItem>[];
+
+    if (requests.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              vertical: AppSpacing.s8,
+              horizontal: AppSpacing.s6,
+            ),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.cardAlt),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.s4),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.surface,
+                  ),
+                  child: const Icon(
+                    Icons.front_hand_outlined,
+                    size: 28,
+                    color: AppColors.text2,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s5),
+                Text(
+                  "No requests yet",
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s2),
+                Text(
+                  "When listeners request a track,\nit'll show up here for you to accept.",
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppColors.text2),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       physics: const BouncingScrollPhysics(),
@@ -601,21 +617,22 @@ class _DjControlScreenState extends State<DjControlScreen> {
         children: [
           Text(
             'Listeners are requesting tracks. Accept to drop them into the queue.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.text2,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.text2),
           ),
           const SizedBox(height: AppSpacing.s4),
-          ..._requests.map((r) => _buildRequestCard(context, r)),
+          ...requests.map((r) => _buildRequestCard(context, r)),
           const SizedBox(height: AppSpacing.s8),
         ],
       ),
     );
   }
 
-  Widget _buildRequestCard(BuildContext context, _RequestItem item) {
-    final avatarSeed = item.requestedBy;
-    final avatarColor = AppColors.generateBgColor(avatarSeed);
+  Widget _buildRequestCard(BuildContext context, RequestItem item) {
+    final requestedBy = item.requestedBy;
+    final avatarColor = AppColors.generateBgColor(requestedBy.name);
+    final currentSong = item.song;
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.s3),
@@ -630,9 +647,19 @@ class _DjControlScreenState extends State<DjControlScreen> {
           Row(
             children: [
               AlbumArtCover(
-                seed: item.artSeed,
+                seed: currentSong.title,
                 size: 56,
                 radius: AppRadius.sm,
+                child:
+                    currentSong.thumbnail != null &&
+                        currentSong.thumbnail!.isNotEmpty
+                    ? Image.network(
+                        currentSong.thumbnail!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox.shrink(),
+                      )
+                    : null,
               ),
               const SizedBox(width: AppSpacing.s3),
               Expanded(
@@ -640,7 +667,7 @@ class _DjControlScreenState extends State<DjControlScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item.title,
+                      currentSong.title,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.text,
@@ -650,10 +677,10 @@ class _DjControlScreenState extends State<DjControlScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${item.artist} · ${item.duration}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.text2,
-                      ),
+                      '${currentSong.artists?.map((e) => e.name).join(",") ?? ""} · ${_formatDuration(Duration(seconds: currentSong.duration))}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
                     ),
                   ],
                 ),
@@ -672,9 +699,9 @@ class _DjControlScreenState extends State<DjControlScreen> {
                 ),
                 child: Center(
                   child: Text(
-                    avatarSeed[0].toUpperCase(),
+                    requestedBy.name[0].toUpperCase(),
                     style: TextStyle(
-                      color: AppColors.generateTextColor(avatarSeed),
+                      color: AppColors.generateTextColor(requestedBy.name),
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
@@ -684,10 +711,10 @@ class _DjControlScreenState extends State<DjControlScreen> {
               const SizedBox(width: AppSpacing.s2),
               Expanded(
                 child: Text(
-                  '@${item.requestedBy} · ${item.timeAgo}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.text2,
-                  ),
+                  '@${item.requestedBy} · ${item.addedAt}',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
                 ),
               ),
               _buildCircleActionButton(
@@ -732,180 +759,355 @@ class _DjControlScreenState extends State<DjControlScreen> {
 
   // ── Add to Queue Bottom Sheet ──
 
-  void _showAddToQueueSheet(BuildContext context) {
+  void _showAddToQueueSheet(BuildContext context, RoomProvider roomRef) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) {
-        final sheetHeight = MediaQuery.sizeOf(context).height * 0.75;
-        return ClipRRect(
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(24),
-          ),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              height: sheetHeight,
-              decoration: BoxDecoration(
-                color: AppColors.background.withValues(alpha: 0.7),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ),
-                border: const Border(
-                  top: BorderSide(color: AppColors.hairlineLight, width: 1),
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.text3.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 16, 16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Add to queue',
-                            style: TextStyle(
-                              color: AppColors.text,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                        IconButton.filled(
-                          style: IconButton.styleFrom(
-                            backgroundColor: AppColors.hairlineLight,
-                            padding: const EdgeInsets.all(8),
-                            minimumSize: Size.zero,
-                          ),
-                          icon: const Icon(
-                            Icons.close,
-                            size: 20,
-                            color: AppColors.text,
-                          ),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        border: Border.all(color: AppColors.hairlineDark),
-                        borderRadius: AppRadius.smBorderRadius,
-                      ),
-                      child: Row(
-                        children: [
-                          const SizedBox(width: AppSpacing.s3),
-                          const Icon(
-                            Icons.search,
-                            color: AppColors.text3,
-                            size: 20,
-                          ),
-                          const SizedBox(width: AppSpacing.s2),
-                          Expanded(
-                            child: TextField(
-                              style: const TextStyle(
-                                color: AppColors.text,
-                                fontSize: 14,
-                              ),
-                              decoration: const InputDecoration(
-                                border: InputBorder.none,
-                                hintText: 'Search Vibez Music...',
-                                hintStyle: TextStyle(
-                                  color: AppColors.text3,
-                                  fontSize: 14,
-                                ),
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.s3),
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: _searchSongs.length,
-                      itemBuilder: (context, index) {
-                        final song = _searchSongs[index];
-                        return _buildSearchSongTile(context, song);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
+      builder: (context) => _AddToQueueSheet(
+        roomId: widget.roomId,
+        addSongToQueue: (id) async {
+          await roomRef.addSong(id);
         },
+      ),
     );
   }
 
-  Widget _buildSearchSongTile(BuildContext context, _SearchSongItem song) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
-      child: Row(
-        children: [
-          AlbumArtCover(
-            seed: song.artSeed,
-            size: 48,
-            radius: AppRadius.xs,
-          ),
-          const SizedBox(width: AppSpacing.s3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  song.title,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.text,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${song.artist} · ${song.duration}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.text2,
-                  ),
-                ),
-              ],
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+}
+
+// ── Add to Queue Sheet ──
+
+class _AddToQueueSheet extends StatefulWidget {
+  final String roomId;
+  final Function(String id) addSongToQueue;
+  const _AddToQueueSheet({required this.roomId, required this.addSongToQueue});
+
+  @override
+  State<_AddToQueueSheet> createState() => _AddToQueueSheetState();
+}
+
+class _AddToQueueSheetState extends State<_AddToQueueSheet> {
+  final _searchController = TextEditingController();
+  final _focusNode = FocusNode();
+  Timer? _debounce;
+  List<SearchSong> _results = [];
+  bool _isLoading = false;
+  String? _addingId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    _debounce?.cancel();
+    if (query.trim().isEmpty) {
+      setState(() {
+        _results = [];
+        _isLoading = false;
+      });
+      return;
+    }
+    setState(() => _isLoading = true);
+    _debounce = Timer(const Duration(milliseconds: 400), () => _search(query));
+  }
+
+  Future<void> _search(String query) async {
+    final result = await SearchRepository.instance.search(
+      query.trim(),
+      filter: SearchFilter.song,
+    );
+    if (mounted && _searchController.text.trim() == query.trim()) {
+      setState(() {
+        _results = result?.songs ?? [];
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remaining = seconds % 60;
+    return '$minutes:${remaining.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sheetHeight = MediaQuery.sizeOf(context).height * 0.75;
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          height: sheetHeight,
+          decoration: BoxDecoration(
+            color: AppColors.background.withValues(alpha: 0.7),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: const Border(
+              top: BorderSide(color: AppColors.hairlineLight, width: 1),
             ),
           ),
-          Material(
-            color: AppColors.primary,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () {},
-              child: const Padding(
-                padding: EdgeInsets.all(8),
-                child: Icon(Icons.add, color: Colors.white, size: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.text3.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Add to queue',
+                        style: TextStyle(
+                          color: AppColors.text,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    IconButton.filled(
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.hairlineLight,
+                        padding: const EdgeInsets.all(8),
+                        minimumSize: Size.zero,
+                      ),
+                      icon: const Icon(
+                        Icons.close,
+                        size: 20,
+                        color: AppColors.text,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    border: Border.all(color: AppColors.hairlineDark),
+                    borderRadius: AppRadius.smBorderRadius,
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: AppSpacing.s3),
+                      const Icon(
+                        Icons.search,
+                        color: AppColors.text3,
+                        size: 20,
+                      ),
+                      const SizedBox(width: AppSpacing.s2),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          focusNode: _focusNode,
+                          onChanged: _onSearchChanged,
+                          style: const TextStyle(
+                            color: AppColors.text,
+                            fontSize: 14,
+                          ),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            hintText: 'Search...',
+                            hintStyle: TextStyle(
+                              color: AppColors.text3,
+                              fontSize: 14,
+                            ),
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                      if (_searchController.text.isNotEmpty)
+                        GestureDetector(
+                          onTap: () {
+                            _searchController.clear();
+                            _onSearchChanged('');
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            child: Icon(
+                              Icons.close,
+                              color: AppColors.text3,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s3),
+              Expanded(child: _buildResults()),
+            ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildResults() {
+    if (_searchController.text.trim().isEmpty) {
+      return const Center(
+        child: Text(
+          'Search for songs to add',
+          style: TextStyle(color: AppColors.text3, fontSize: 15),
+        ),
+      );
+    }
+
+    if (_isLoading) {
+      return ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: 6,
+        itemBuilder: (context, index) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              const Skeleton(height: 48, width: 48, borderRadius: 8),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Skeleton(height: 14, width: 160, borderRadius: 4),
+                    SizedBox(height: 8),
+                    Skeleton(height: 12, width: 100, borderRadius: 4),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_results.isEmpty) {
+      return const Center(
+        child: Text(
+          'No songs found',
+          style: TextStyle(color: AppColors.text3, fontSize: 15),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      physics: const BouncingScrollPhysics(),
+      itemCount: _results.length,
+      itemBuilder: (context, index) {
+        final song = _results[index];
+        final isAdding = song.id == _addingId;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
+          child: Row(
+            children: [
+              AlbumArtCover(
+                seed: song.title,
+                size: 48,
+                radius: AppRadius.xs,
+                child: song.thumbnail.isNotEmpty
+                    ? Image.network(
+                        song.thumbnail,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: AppSpacing.s3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.title,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.text,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${song.artists} · ${_formatDuration(song.duration)}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
+                    ),
+                  ],
+                ),
+              ),
+              if (isAdding)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary,
+                  ),
+                )
+              else
+                Material(
+                  color: AppColors.primary,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () async {
+                      if (_addingId != null) return;
+                      setState(() => _addingId = song.id);
+                      try {
+                        await widget.addSongToQueue(song.id);
+                        if (mounted) {
+                          setState(() => _addingId = null);
+                          AppSnackbar.show(
+                            message: 'Added ${song.title}',
+                            type: .success,
+                          );
+                        }
+                      } catch (_) {
+                        if (mounted) {
+                          setState(() => _addingId = null);
+                        }
+                      }
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Icon(Icons.add, color: Colors.white, size: 20),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

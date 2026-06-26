@@ -14,8 +14,8 @@ enum RoomStatus { loading, ready, error }
 
 final roomProvider = ChangeNotifierProvider.autoDispose
     .family<RoomProvider, String>((ref, roomId) {
-  return RoomProvider(ref, roomId);
-});
+      return RoomProvider(ref, roomId);
+    });
 
 class RoomProvider extends ChangeNotifier {
   final Ref _ref;
@@ -40,10 +40,12 @@ class RoomProvider extends ChangeNotifier {
 
   Future<void> _init() async {
     try {
-      final response =
-          await _socket.emitWithAck('room:details', {'roomId': roomId});
-      final state =
-          RoomState.fromJson(Map<String, dynamic>.from(response as Map));
+      final response = await _socket.emitWithAck('room:details', {
+        'roomId': roomId,
+      });
+      final state = RoomState.fromJson(
+        Map<String, dynamic>.from(response as Map),
+      );
 
       room = state.room;
       participants = state.participants;
@@ -57,19 +59,25 @@ class RoomProvider extends ChangeNotifier {
       _fetchQueue();
 
       _sub = _socket.stream('room:state_update').listen((data) {
-        final update =
-            RoomState.fromJson(Map<String, dynamic>.from(data as Map));
+        final update = RoomState.fromJson(
+          Map<String, dynamic>.from(data as Map),
+        );
         if (update.room.id != roomId) return;
         room = update.room;
         participants = update.participants;
         participantsInitials = update.participantsInitials;
+        if (update.queue != null) {
+          queue = update.queue!;
+        }
         notifyListeners();
       });
 
       _songAddedSub = _socket.stream('room:song_added').listen((data) {
         final map = Map<String, dynamic>.from(data as Map);
         if (map['item'] == null) return;
-        final item = QueueItem.fromJson(Map<String, dynamic>.from(map['item'] as Map));
+        final item = QueueItem.fromJson(
+          Map<String, dynamic>.from(map['item'] as Map),
+        );
         queue.add(item);
         notifyListeners();
       });
@@ -77,7 +85,9 @@ class RoomProvider extends ChangeNotifier {
       _songRemovedSub = _socket.stream('room:song_removed').listen((data) {
         final map = Map<String, dynamic>.from(data as Map);
         if (map['item'] == null) return;
-        final item = QueueItem.fromJson(Map<String, dynamic>.from(map['item'] as Map));
+        final item = QueueItem.fromJson(
+          Map<String, dynamic>.from(map['item'] as Map),
+        );
         queue.removeWhere((e) => e.id == item.id);
         notifyListeners();
       });
@@ -88,7 +98,9 @@ class RoomProvider extends ChangeNotifier {
         room = Room.fromJson(map);
         participants = map['participants'] as int? ?? participants;
         if (map['participantsInitials'] != null) {
-          participantsInitials = List<String>.from(map['participantsInitials'] as List);
+          participantsInitials = List<String>.from(
+            map['participantsInitials'] as List,
+          );
         }
         notifyListeners();
       });
@@ -101,15 +113,36 @@ class RoomProvider extends ChangeNotifier {
 
   Future<void> _fetchQueue() async {
     try {
-      final response = await _socket.emitWithAck('room:queue', {'roomId': roomId});
+      final response = await _socket.emitWithAck('room:queue', {
+        'roomId': roomId,
+      });
       final data = Map<String, dynamic>.from(response as Map);
-      queue = (data['queue'] as List?)
-              ?.map((e) => QueueItem.fromJson(Map<String, dynamic>.from(e as Map)))
+      queue =
+          (data['queue'] as List?)
+              ?.map(
+                (e) => QueueItem.fromJson(Map<String, dynamic>.from(e as Map)),
+              )
               .toList() ??
           [];
       notifyListeners();
     } catch (_) {}
   }
+
+  Future<void> addSong(String songId) async {
+      await _socket.emitWithAck('room:add_song', {
+        'roomId': roomId,
+        'songId': songId,
+      });
+  }
+  
+  Future<void> removeSong(String queueItemId) async {
+      await _socket.emitWithAck('room:remove_song', {
+        'roomId': roomId,
+        'queueItemId': queueItemId,
+      });
+      notifyListeners();
+  }
+
 
   Future<void> joinRoom() async {
     _ref.read(playbackProvider.notifier).pause();
@@ -154,10 +187,12 @@ class RoomProvider extends ChangeNotifier {
 
   Future<void> refresh() async {
     try {
-      final response =
-          await _socket.emitWithAck('room:details', {'roomId': roomId});
-      final state =
-          RoomState.fromJson(Map<String, dynamic>.from(response as Map));
+      final response = await _socket.emitWithAck('room:details', {
+        'roomId': roomId,
+      });
+      final state = RoomState.fromJson(
+        Map<String, dynamic>.from(response as Map),
+      );
 
       room = state.room;
       participants = state.participants;

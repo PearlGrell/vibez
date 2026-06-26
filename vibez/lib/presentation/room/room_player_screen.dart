@@ -70,7 +70,7 @@ class RoomPlayerScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.s4),
                     Center(
                       child: room.currentDj != null
-                          ? _buildDjChip(context, room, isDj)
+                          ? _buildDjChip(context, room, isDj, roomId)
                           : _buildNoDj(context),
                     ),
                     const SizedBox(height: AppSpacing.s5),
@@ -241,7 +241,7 @@ Widget _buildAlbumArt(Room room) {
   );
 }
 
-Widget _buildDjChip(BuildContext context, Room room, bool isDj) {
+Widget _buildDjChip(BuildContext context, Room room, bool isDj, String roomId) {
   final dj = room.currentDj!;
   final seed = dj.username ?? dj.name;
   return Row(
@@ -320,7 +320,7 @@ Widget _buildDjChip(BuildContext context, Room room, bool isDj) {
           icon: Icons.graphic_eq_rounded,
           iconSize: 18,
           onTap: () {
-            AppRouter.instance.push(RouteLocation.roomDj);
+            AppRouter.instance.push('/room/$roomId/dj');
           },
         ),
       ],

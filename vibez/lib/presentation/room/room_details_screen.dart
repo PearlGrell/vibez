@@ -28,13 +28,13 @@ class RoomDetailsScreen extends ConsumerWidget {
       if (roomState.status == RoomStatus.error) {
         return _buildError(context, ref, roomState.error!);
       }
-    
+
       final room = roomState.room!;
       final user = ref.watch(userProvider);
       final isMyRoom = user?.myRooms?.any((e) => e.id == room.id) ?? false;
       final hasFollowed =
           user?.joinedRooms?.any((e) => e.id == room.id) ?? false;
-    
+
       return Scaffold(
         body: _buildBody(
           context,
@@ -112,12 +112,12 @@ class RoomDetailsScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.s7),
                 if (room.currentSong != null) ...[
                   _buildNowPlaying(context, room),
-                  if (roomState.queue.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.s7),
-                    _buildUpNext(context, roomState.queue),
-                  ],
                 ] else
                   _buildEmptyState(context),
+                if (roomState.queue.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.s7),
+                  _buildUpNext(context, roomState.queue),
+                ],
                 const SizedBox(height: AppSpacing.s7),
                 _buildAboutSection(context, room),
               ],

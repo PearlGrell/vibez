@@ -48,7 +48,7 @@ export interface QueueResponseDto {
 }
 
 export interface QueueItemResponseDto {
-  item: QueueItem;
+  item: Omit<QueueItem, 'generateId'>;
 }
 
 export interface DjResponseDto {

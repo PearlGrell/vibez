@@ -132,7 +132,7 @@ export class SongsService implements OnModuleInit {
   async getAudio(id: string): Promise<AudioResponse> {
     const cached = this.audioCache.get(id);
     const now = Date.now();
-    if (cached && (now - cached.fetchedAt < 1800000)) {
+    if (cached && now - cached.fetchedAt < 1800000) {
       return cached.audio;
     }
     const audio = await firstValueFrom(this.grpcService.Audio({ id }));
