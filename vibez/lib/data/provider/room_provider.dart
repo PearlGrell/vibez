@@ -23,8 +23,7 @@ class RoomProvider extends ChangeNotifier {
   final SocketClient _socket = SocketClient.instance;
   StreamSubscription? _sub;
   StreamSubscription? _globalSub;
-  StreamSubscription? _songAddedSub;
-  StreamSubscription? _songRemovedSub;
+  StreamSubscription? _queueSub;
 
   RoomStatus status = RoomStatus.loading;
   Room? room;
@@ -66,29 +65,19 @@ class RoomProvider extends ChangeNotifier {
         room = update.room;
         participants = update.participants;
         participantsInitials = update.participantsInitials;
-        if (update.queue != null) {
-          queue = update.queue!;
-        }
         notifyListeners();
       });
 
-      _songAddedSub = _socket.stream('room:song_added').listen((data) {
+      _queueSub = _socket.stream('room:queue_update').listen((data) {
         final map = Map<String, dynamic>.from(data as Map);
-        if (map['item'] == null) return;
-        final item = QueueItem.fromJson(
-          Map<String, dynamic>.from(map['item'] as Map),
-        );
-        queue.add(item);
-        notifyListeners();
-      });
-
-      _songRemovedSub = _socket.stream('room:song_removed').listen((data) {
-        final map = Map<String, dynamic>.from(data as Map);
-        if (map['item'] == null) return;
-        final item = QueueItem.fromJson(
-          Map<String, dynamic>.from(map['item'] as Map),
-        );
-        queue.removeWhere((e) => e.id == item.id);
+        if (map['roomId'] != roomId) return;
+        queue =
+            (map['queue'] as List?)
+                ?.map(
+                  (e) => QueueItem.fromJson(Map<String, dynamic>.from(e as Map)),
+                )
+                .toList() ??
+            [];
         notifyListeners();
       });
 
@@ -211,8 +200,7 @@ class RoomProvider extends ChangeNotifier {
   void dispose() {
     _sub?.cancel();
     _globalSub?.cancel();
-    _songAddedSub?.cancel();
-    _songRemovedSub?.cancel();
+    _queueSub?.cancel();
     super.dispose();
   }
 }

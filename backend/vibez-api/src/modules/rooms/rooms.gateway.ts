@@ -38,7 +38,6 @@ import {
   type SongRequestResponseDto,
 } from './dto/room-responses.dto';
 import { Room } from './entities/room.entity';
-import { QueueItem } from './entities/queue-item.entity';
 
 @WebSocketGateway({
   cors: {
@@ -91,28 +90,22 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       try {
         const wasDj = await this.roomService.isDj(roomId, client.data.user.sub);
         const participantsAfter = Math.max(0, this.getParticipantCount(roomId) - 1);
-        if (wasDj || participantsAfter === 0) {
-          const participantIds = await this.getParticipantUserIds(roomId, client.id);
-          const updated = await this.roomService.autoAssignDj(roomId, participantIds, client.data.user.sub);
-          await this.broadcastStateUpdate(r, updated);
-        }
-        const freshRoom = await this.roomService.getById(roomId);
-        const participants = participantsAfter;
-        const participantsInitials = this.getParticipantInitials(roomId, client.id);
-        const queue = await this.roomService.getQueue(roomId);
-        this.server.to(r).emit(RoomEvents.STATE_UPDATE, {
-          room: freshRoom,
-          participants,
-          participantsInitials,
-          queue,
-        });
+        const freshRoom = await (async () => {
+          if (wasDj || participantsAfter === 0) {
+            const participantIds = await this.getParticipantUserIds(roomId, client.id);
+            return this.roomService.autoAssignDj(roomId, participantIds, client.data.user.sub);
+          }
+          return this.roomService.getById(roomId);
+        })();
+        this.broadcastStateUpdate(r, freshRoom);
+        this.broadcastPlaybackQueue(roomId);
         this.server.to(r).emit(RoomEvents.USER_LEFT, {
           userId: client.data.user.sub,
           room: freshRoom,
-          participants,
-          participantsInitials,
+          participants: participantsAfter,
+          participantsInitials: this.getParticipantInitials(roomId, client.id),
         });
-        this.broadcastRoomSummary(freshRoom, participants, client.id);
+        this.broadcastRoomSummary(freshRoom, participantsAfter, client.id);
       } catch {}
     }
   }
@@ -150,15 +143,19 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     return initials;
   }
 
-  private async broadcastStateUpdate(roomName: string, room: Room, queue?: QueueItem[]) {
+  private broadcastStateUpdate(roomName: string, room: Room) {
     const roomId = roomName.startsWith('room:') ? roomName.replace('room:', '') : roomName;
-    const resolvedQueue = queue ?? await this.roomService.getQueue(roomId);
     this.server.to(`room:${roomId}`).emit(RoomEvents.STATE_UPDATE, {
       room,
       participants: this.getParticipantCount(roomId),
       participantsInitials: this.getParticipantInitials(roomId),
-      queue: resolvedQueue,
     });
+  }
+
+  private async broadcastPlaybackQueue(roomId: string) {
+    const id = roomId.startsWith('room:') ? roomId.replace('room:', '') : roomId;
+    const queue = await this.roomService.getQueue(id);
+    this.server.emit(RoomEvents.QUEUE_UPDATE, { roomId: id, queue });
   }
 
   private broadcastRoomSummary(room: Room, participantOverride?: number, excludeSocketId?: string) {
@@ -280,12 +277,15 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
         const oldRoomId = r.replace('room:', '');
         const wasDj = await this.roomService.isDj(oldRoomId, client.data.user.sub);
         await client.leave(r);
-        if (wasDj || this.getParticipantCount(oldRoomId) === 0) {
-          const participantIds = await this.getParticipantUserIds(oldRoomId);
-          const updated = await this.roomService.autoAssignDj(oldRoomId, participantIds, client.data.user.sub);
-          await this.broadcastStateUpdate(r, updated);
-        }
-        const oldRoom = await this.roomService.getById(oldRoomId);
+        const oldRoom = await (async () => {
+          if (wasDj || this.getParticipantCount(oldRoomId) === 0) {
+            const participantIds = await this.getParticipantUserIds(oldRoomId);
+            return this.roomService.autoAssignDj(oldRoomId, participantIds, client.data.user.sub);
+          }
+          return this.roomService.getById(oldRoomId);
+        })();
+        this.broadcastStateUpdate(r, oldRoom);
+        this.broadcastPlaybackQueue(oldRoomId);
         this.server.to(r).emit(RoomEvents.USER_LEFT, {
           userId: client.data.user.sub,
           room: oldRoom,
@@ -297,7 +297,8 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     }
 
     await client.join(roomName);
-    await this.broadcastStateUpdate(roomName, room);
+    this.broadcastStateUpdate(roomName, room);
+    this.broadcastPlaybackQueue(room.id);
     this.server.to(roomName).emit(RoomEvents.USER_JOINED, {
       userId: client.data.user.sub,
       room,
@@ -327,14 +328,16 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
     await client.leave(roomName);
 
-    if (wasDj || this.getParticipantCount(room.id) === 0) {
-      const participantIds = await this.getParticipantUserIds(room.id);
-      const updated = await this.roomService.autoAssignDj(room.id, participantIds, client.data.user.sub);
-      await this.broadcastStateUpdate(roomName, updated);
-    }
+    const freshRoom = await (async () => {
+      if (wasDj || this.getParticipantCount(room.id) === 0) {
+        const participantIds = await this.getParticipantUserIds(room.id);
+        return this.roomService.autoAssignDj(room.id, participantIds, client.data.user.sub);
+      }
+      return this.roomService.getById(room.id);
+    })();
 
-    const freshRoom = await this.roomService.getById(room.id);
-    await this.broadcastStateUpdate(roomName, freshRoom);
+    this.broadcastStateUpdate(roomName, freshRoom);
+    this.broadcastPlaybackQueue(room.id);
     this.server.to(roomName).emit(RoomEvents.USER_LEFT, {
       userId: client.data.user.sub,
       room: freshRoom,
@@ -362,9 +365,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       await this.ensureDj(data.roomId, client.data.user.sub);
       const item = await this.roomService.addSongToQueue(data.roomId, data.songId, client.data.user.sub);
 
-      this.server.to(`room:${data.roomId}`).emit(RoomEvents.SONG_ADDED, { item });
-      const room = await this.roomService.getById(data.roomId);
-      await this.broadcastStateUpdate(`room:${data.roomId}`, room);
+      this.broadcastPlaybackQueue(data.roomId);
       return { item };
     } catch (e) {
       console.error(e);
@@ -381,9 +382,8 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     await this.ensureDj(data.roomId, client.data.user.sub);
 
     const item = await this.roomService.removeSongFromQueue(data.roomId, data.queueItemId, client.data.user.sub);
-    this.server.to(`room:${data.roomId}`).emit(RoomEvents.SONG_REMOVED, { item });
-    const room = await this.roomService.getById(data.roomId);
-    await this.broadcastStateUpdate(`room:${data.roomId}`, room);
+
+    this.broadcastPlaybackQueue(data.roomId);
     return { item };
   }
 
@@ -409,27 +409,28 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   @UsePipes(new ZodPipe(joinRoomSchema))
   async play(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<DjResponseDto> {
     const room = await this.roomService.play(data.roomId, client.data.user.sub);
-    const participants = this.getParticipantCount(room.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    return { room, participants, participantsInitials: this.getParticipantInitials(room.id) };
+    this.broadcastRoomSummary(room);
+    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
   }
 
   @SubscribeMessage(RoomEvents.PAUSE)
   @UsePipes(new ZodPipe(joinRoomSchema))
   async pause(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<DjResponseDto> {
     const room = await this.roomService.pause(data.roomId, client.data.user.sub);
-    const participants = this.getParticipantCount(room.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    return { room, participants, participantsInitials: this.getParticipantInitials(room.id) };
+    this.broadcastRoomSummary(room);
+    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
   }
 
   @SubscribeMessage(RoomEvents.SONG_CHANGED)
   @UsePipes(new ZodPipe(addSongSchema))
   async changeSong(@ConnectedSocket() client: Socket, @MessageBody() data: AddSongDto): Promise<DjResponseDto> {
     const room = await this.roomService.changeSong(data.roomId, data.songId, client.data.user.sub);
-    const participants = this.getParticipantCount(room.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    return { room, participants, participantsInitials: this.getParticipantInitials(room.id) };
+    this.broadcastPlaybackQueue(data.roomId);
+    this.broadcastRoomSummary(room);
+    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
   }
 
   // ── DJ management ──
@@ -446,9 +447,9 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   @UsePipes(new ZodPipe(joinRoomSchema))
   async joinDj(@ConnectedSocket() client: Socket, @MessageBody() data: JoinRoomDto): Promise<DjResponseDto> {
     const room = await this.roomService.joinAsDj(data.roomId, client.data.user.sub);
-    const participants = this.getParticipantCount(room.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    return { room, participants, participantsInitials: this.getParticipantInitials(room.id) };
+    this.broadcastRoomSummary(room);
+    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
   }
 
   @SubscribeMessage(RoomEvents.LEAVE_DJ)
@@ -457,17 +458,17 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     await this.roomService.leaveAsDj(data.roomId, client.data.user.sub);
     const participantIds = await this.getParticipantUserIds(data.roomId);
     const updated = await this.roomService.autoAssignDj(data.roomId, participantIds, client.data.user.sub);
-    const participants = this.getParticipantCount(updated.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, updated);
-    return { room: updated, participants, participantsInitials: this.getParticipantInitials(updated.id) };
+    this.broadcastRoomSummary(updated);
+    return { room: updated, participants: this.getParticipantCount(updated.id), participantsInitials: this.getParticipantInitials(updated.id) };
   }
 
   @SubscribeMessage(RoomEvents.ASSIGN_DJ)
   @UsePipes(new ZodPipe(assignDjSchema))
   async assignDj(@ConnectedSocket() client: Socket, @MessageBody() data: AssignDjDto): Promise<DjResponseDto> {
     const room = await this.roomService.assignDj(data.roomId, client.data.user.sub, data.userId);
-    const participants = this.getParticipantCount(room.id);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
-    return { room, participants, participantsInitials: this.getParticipantInitials(room.id) };
+    this.broadcastRoomSummary(room);
+    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
   }
 }
