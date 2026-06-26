@@ -788,8 +788,28 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
       isScrollControlled: true,
       builder: (context) => _AddToQueueSheet(
         roomId: widget.roomId,
-        addSongToQueue: (id) async {
-          await roomRef.addSong(id);
+        addSongToQueue: (song) async {
+          if (roomRef.queue.length >= 5) {
+            AppSnackbar.show(
+              message: "You can only add up to 5 songs to the queue.",
+              type: AppSnackType.warning,
+            );
+            return;
+          }
+
+          try {
+            await roomRef.addSong(song.id);
+
+            AppSnackbar.show(
+              message: 'Added "${song.title}" to the queue.',
+              type: AppSnackType.success,
+            );
+          } catch (e) {
+            AppSnackbar.show(
+              message: 'Failed to add "${song.title}". Please try again.',
+              type: AppSnackType.error,
+            );
+          }
         },
       ),
     );
@@ -806,7 +826,7 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
 
 class _AddToQueueSheet extends StatefulWidget {
   final String roomId;
-  final Function(String id) addSongToQueue;
+  final Function(SearchSong song) addSongToQueue;
   const _AddToQueueSheet({required this.roomId, required this.addSongToQueue});
 
   @override
@@ -1106,13 +1126,9 @@ class _AddToQueueSheetState extends State<_AddToQueueSheet> {
                       if (_addingId != null) return;
                       setState(() => _addingId = song.id);
                       try {
-                        await widget.addSongToQueue(song.id);
+                        await widget.addSongToQueue(song);
                         if (mounted) {
                           setState(() => _addingId = null);
-                          AppSnackbar.show(
-                            message: 'Added ${song.title}',
-                            type: AppSnackType.success,
-                          );
                         }
                       } catch (_) {
                         if (mounted) {
