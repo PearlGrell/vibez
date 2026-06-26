@@ -25,4 +25,5 @@ export const RoomEvents = {
   PAUSE: 'room:pause',
   SONG_CHANGED: 'room:song_changed',
   STATE_UPDATE: 'room:state_update',
+  ROOMS_UPDATE: 'rooms:update',
 };

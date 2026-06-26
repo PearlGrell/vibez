@@ -148,6 +148,7 @@ class SearchRoom {
   final String description;
   final List<String> tags;
   final bool playing;
+  final int participants;
 
   const SearchRoom({
     required this.id,
@@ -155,6 +156,7 @@ class SearchRoom {
     required this.description,
     this.tags = const [],
     this.playing = false,
+    this.participants = 0,
   });
 
   factory SearchRoom.fromJson(Map<String, dynamic> json) {
@@ -164,6 +166,24 @@ class SearchRoom {
       description: json['description'] as String? ?? '',
       tags: json['tags'] != null ? List<String>.from(json['tags'] as List) : [],
       playing: json['playing'] as bool? ?? false,
+      participants: json['participants'] as int? ?? 0,
+    );
+  }
+
+  SearchRoom copyWith({
+    String? name,
+    String? description,
+    List<String>? tags,
+    bool? playing,
+    int? participants,
+  }) {
+    return SearchRoom(
+      id: id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      tags: tags ?? this.tags,
+      playing: playing ?? this.playing,
+      participants: participants ?? this.participants,
     );
   }
 
@@ -174,6 +194,7 @@ class SearchRoom {
       'description': description,
       'tags': tags,
       'playing': playing,
+      'participants': participants,
     };
   }
 }

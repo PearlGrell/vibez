@@ -17,10 +17,14 @@ import { ZodPipe } from 'src/common/pipes/zod/zod.pipe';
 import { type JoinRoomDto, joinRoomSchema } from './dto/join-room.dto';
 import { type LeaveRoomDto, leaveRoomSchema } from './dto/leave-room.dto';
 import {
-  type AddSongDto, addSongSchema,
-  type RemoveSongDto, removeSongSchema,
-  type RequestSongDto, requestSongSchema,
-  type AssignDjDto, assignDjSchema,
+  type AddSongDto,
+  addSongSchema,
+  type RemoveSongDto,
+  removeSongSchema,
+  type RequestSongDto,
+  requestSongSchema,
+  type AssignDjDto,
+  assignDjSchema,
 } from './dto/queue.dto';
 import { RoomEvents } from './constants/room-events';
 import {
@@ -28,7 +32,6 @@ import {
   type RoomLeaveResponseDto,
   type RoomDetailsResponseDto,
   type RoomsResponseDto,
-
   type QueueResponseDto,
   type QueueItemResponseDto,
   type DjResponseDto,
@@ -86,13 +89,14 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       const roomId = r.replace('room:', '');
       try {
         const wasDj = await this.roomService.isDj(roomId, client.data.user.sub);
-        if (wasDj) {
+        const participantsAfter = Math.max(0, this.getParticipantCount(roomId) - 1);
+        if (wasDj || participantsAfter === 0) {
           const participantIds = await this.getParticipantUserIds(roomId, client.id);
           const updated = await this.roomService.autoAssignDj(roomId, participantIds, client.data.user.sub);
           this.broadcastStateUpdate(r, updated);
         }
         const freshRoom = await this.roomService.getById(roomId);
-        const participants = Math.max(0, this.getParticipantCount(roomId) - 1);
+        const participants = participantsAfter;
         const participantsInitials = this.getParticipantInitials(roomId, client.id);
         this.server.to(r).emit(RoomEvents.STATE_UPDATE, {
           room: freshRoom,
@@ -105,6 +109,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
           participants,
           participantsInitials,
         });
+        this.broadcastRoomSummary(freshRoom, participants, client.id);
       } catch {}
     }
   }
@@ -147,7 +152,25 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     this.server.to(`room:${roomId}`).emit(RoomEvents.STATE_UPDATE, {
       room,
       participants: this.getParticipantCount(roomId),
-      participantsInitials: this.getParticipantInitials(roomId)
+      participantsInitials: this.getParticipantInitials(roomId),
+    });
+  }
+
+  private broadcastRoomSummary(room: Room, participantOverride?: number, excludeSocketId?: string) {
+    const participants = participantOverride ?? this.getParticipantCount(room.id);
+    const initials = this.getParticipantInitials(room.id, excludeSocketId).slice(0, 5);
+    this.server.emit(RoomEvents.ROOMS_UPDATE, {
+      id: room.id,
+      name: room.name,
+      description: room.description,
+      tags: room.tags,
+      currentDj: room.currentDj,
+      createdBy: room.createdBy,
+      participants,
+      participantsInitials: initials,
+      currentSong: room.currentSong,
+      playing: room.playing,
+      startedAt: room.startedAt,
     });
   }
 
@@ -223,7 +246,11 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     @MessageBody() data: JoinRoomDto,
   ): Promise<RoomDetailsResponseDto> {
     const room = await this.roomService.getById(data.roomId);
-    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
+    return {
+      room,
+      participants: this.getParticipantCount(room.id),
+      participantsInitials: this.getParticipantInitials(room.id),
+    };
   }
 
   // ── Join & leave room ──
@@ -235,7 +262,12 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const roomName = `room:${room.id}`;
 
     if (client.rooms.has(roomName)) {
-      return { success: true, room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
+      return {
+        success: true,
+        room,
+        participants: this.getParticipantCount(room.id),
+        participantsInitials: this.getParticipantInitials(room.id),
+      };
     }
 
     for (const r of client.rooms) {
@@ -243,7 +275,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
         const oldRoomId = r.replace('room:', '');
         const wasDj = await this.roomService.isDj(oldRoomId, client.data.user.sub);
         await client.leave(r);
-        if (wasDj) {
+        if (wasDj || this.getParticipantCount(oldRoomId) === 0) {
           const participantIds = await this.getParticipantUserIds(oldRoomId);
           const updated = await this.roomService.autoAssignDj(oldRoomId, participantIds, client.data.user.sub);
           this.broadcastStateUpdate(r, updated);
@@ -253,8 +285,9 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
           userId: client.data.user.sub,
           room: oldRoom,
           participants: this.getParticipantCount(oldRoomId),
-          participantsInitials: this.getParticipantInitials(oldRoomId)
+          participantsInitials: this.getParticipantInitials(oldRoomId),
         });
+        this.broadcastRoomSummary(oldRoom);
       }
     }
 
@@ -264,10 +297,16 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       userId: client.data.user.sub,
       room,
       participants: this.getParticipantCount(room.id),
-      participantsInitials: this.getParticipantInitials(room.id)
+      participantsInitials: this.getParticipantInitials(room.id),
     });
+    this.broadcastRoomSummary(room);
 
-    return { success: true, room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
+    return {
+      success: true,
+      room,
+      participants: this.getParticipantCount(room.id),
+      participantsInitials: this.getParticipantInitials(room.id),
+    };
   }
 
   @SubscribeMessage(RoomEvents.LEAVE)
@@ -283,7 +322,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
     await client.leave(roomName);
 
-    if (wasDj) {
+    if (wasDj || this.getParticipantCount(room.id) === 0) {
       const participantIds = await this.getParticipantUserIds(room.id);
       const updated = await this.roomService.autoAssignDj(room.id, participantIds, client.data.user.sub);
       this.broadcastStateUpdate(roomName, updated);
@@ -296,6 +335,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
       room: freshRoom,
       participants: this.getParticipantCount(room.id),
     });
+    this.broadcastRoomSummary(freshRoom);
 
     return { success: true, roomId: room.id };
   }
@@ -322,7 +362,10 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
   @SubscribeMessage(RoomEvents.REMOVE_SONG)
   @UsePipes(new ZodPipe(removeSongSchema))
-  async removeSong(@ConnectedSocket() client: Socket, @MessageBody() data: RemoveSongDto): Promise<QueueItemResponseDto> {
+  async removeSong(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: RemoveSongDto,
+  ): Promise<QueueItemResponseDto> {
     await this.ensureDj(data.roomId, client.data.user.sub);
 
     const item = await this.roomService.removeSongFromQueue(data.roomId, data.queueItemId, client.data.user.sub);
@@ -332,7 +375,10 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
   @SubscribeMessage(RoomEvents.REQUEST_SONG)
   @UsePipes(new ZodPipe(requestSongSchema))
-  async requestSong(@ConnectedSocket() client: Socket, @MessageBody() data: RequestSongDto): Promise<SongRequestResponseDto> {
+  async requestSong(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: RequestSongDto,
+  ): Promise<SongRequestResponseDto> {
     await this.ensureNotDj(data.roomId, client.data.user.sub);
 
     const song = await this.roomService.getSongById(data.songId);

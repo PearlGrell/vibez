@@ -9,7 +9,8 @@ import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/data/models/user.dart';
 
 class ProfileScreen extends ConsumerWidget {
-  const ProfileScreen({super.key});
+  final VoidCallback onBack;
+  const ProfileScreen({super.key,required this.onBack});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,245 +35,269 @@ class ProfileScreen extends ConsumerWidget {
         profileUrl.isNotEmpty &&
         !profileUrl.startsWith('default://');
 
-    return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await ref.read(userProvider.notifier).fetchMe();
-        },
-        color: AppColors.primary,
-        child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-          SizedBox(
-            height: MediaQuery.widthOf(context) / 2,
-            child: Stack(
-              fit: StackFit.expand,
-              clipBehavior: .none,
-              children: [
-                AlbumArtCover(
-                  seed: profile.name,
-                  size: double.infinity,
-                  radius: 0,
-                ),
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: const [0.0, 0.4, 1.0],
-                        colors: [
-                          Colors.transparent,
-                          AppColors.background.withValues(alpha: 0.6),
-                          AppColors.background,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: AppSpacing.s4,
-                  top: (MediaQuery.widthOf(context) - 108) / 2,
-                  child: Container(
-                    height: 108,
-                    width: 108,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.background,
-                    ),
-                    padding: EdgeInsets.all(4),
-                    clipBehavior: .antiAlias,
-                    child: hasImage
-                        ? Image.network(
-                            profileUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: profileColor,
-                                  shape: BoxShape.circle,
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  profile.name.isNotEmpty
-                                      ? profile.name[0].toUpperCase()
-                                      : '?',
-                                  style: Theme.of(context).textTheme.bodyLarge
-                                      ?.copyWith(
-                                        color: textColor,
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                ),
-                              );
-                            },
-                          )
-                        : Container(
-                            decoration: BoxDecoration(
-                              color: profileColor,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              profile.name.isNotEmpty
-                                  ? profile.name[0].toUpperCase()
-                                  : '?',
-                              style: Theme.of(context).textTheme.headlineLarge
-                                  ?.copyWith(
-                                    color: textColor,
-                                    fontSize: 36,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                            ),
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s4,
-              54 + AppSpacing.s1,
-              AppSpacing.s4,
-              32,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if(didPop) return;
+        onBack();
+      },
+      child: Scaffold(
+        body: RefreshIndicator(
+          onRefresh: () async {
+            await ref.read(userProvider.notifier).fetchMe();
+          },
+          color: AppColors.primary,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
             child: Column(
-              crossAxisAlignment: .start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: .spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: .start,
-                      spacing: 4,
-                      children: [
-                        Text(
-                          profile.name,
-                          style: Theme.of(context).textTheme.displaySmall,
-                        ),
-                        Text("@${profile.username ?? 'user'}"),
-                      ],
-                    ),
-
-                    GestureDetector(
-                      onTap: () {
-                        context.push('/edit-profile');
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          border: Border.fromBorderSide(
-                            BorderSide(color: AppColors.hairlineDark),
-                          ),
-                          borderRadius: AppRadius.pillBorderRadius,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s4,
-                          vertical: AppSpacing.s2,
-                        ),
-                        child: Row(
-                          spacing: AppSpacing.s2 * 0.85,
-                          children: [
-                            const Icon(
-                              Icons.edit_note_rounded,
-                              size: 18,
-                              color: AppColors.text,
-                            ),
-                            Text(
-                              "Edit",
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppColors.text),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (profile.bio != null && profile.bio!.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.s3),
-                  SizedBox(width: double.infinity, child: Text(profile.bio!)),
-                ],
-
-                const SizedBox(height: AppSpacing.s4),
-
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.cardAlt.withValues(alpha: 0.5),
-                    borderRadius: AppRadius.lgBorderRadius,
-                    border: Border.all(color: AppColors.surface),
-                  ),
-                  child: ProfileStatsCard(
-                    followers: profile.followers?.length ?? 0,
-                    following: profile.following?.length ?? 0,
-                    rooms: profile.joinedRooms?.length ?? 0,
-                  ),
-                ),
-
-                const SizedBox(height: AppSpacing.s6),
-
-                if (profile.tags != null && profile.tags!.isNotEmpty)
-                  Column(
-                    crossAxisAlignment: .start,
+                SizedBox(
+                  height: MediaQuery.widthOf(context) / 2,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    clipBehavior: .none,
                     children: [
-                      Text(
-                        "Favourite genres",
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.text2,
-                            ),
+                      AlbumArtCover(
+                        seed: profile.name,
+                        size: double.infinity,
+                        radius: 0,
                       ),
-                      SizedBox(height: AppSpacing.s3),
-                      Wrap(
-                        direction: Axis.horizontal,
-                        spacing: AppSpacing.s2,
-                        runSpacing: AppSpacing.s2,
-                        children: [
-                          ...profile.tags!.map((e) {
-                            return Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: AppSpacing.s4,
-                                vertical: AppSpacing.s2 * 0.75,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.cardAlt.withValues(alpha: 0.5),
-                                borderRadius: AppRadius.lgBorderRadius,
-                                border: Border.all(color: AppColors.cardAlt),
-                              ),
-                              child: Text(
-                                e,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.text2,
-                                    ),
-                              ),
-                            );
-                          }),
-                        ],
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              stops: const [0.0, 0.4, 1.0],
+                              colors: [
+                                Colors.transparent,
+                                AppColors.background.withValues(alpha: 0.6),
+                                AppColors.background,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: AppSpacing.s4,
+                        top: (MediaQuery.widthOf(context) - 108) / 2,
+                        child: Container(
+                          height: 108,
+                          width: 108,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.background,
+                          ),
+                          padding: EdgeInsets.all(4),
+                          clipBehavior: .antiAlias,
+                          child: hasImage
+                              ? Image.network(
+                                  profileUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      decoration: BoxDecoration(
+                                        color: profileColor,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        profile.name.isNotEmpty
+                                            ? profile.name[0].toUpperCase()
+                                            : '?',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.copyWith(
+                                              color: textColor,
+                                              fontSize: 36,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              : Container(
+                                  decoration: BoxDecoration(
+                                    color: profileColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    profile.name.isNotEmpty
+                                        ? profile.name[0].toUpperCase()
+                                        : '?',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineLarge
+                                        ?.copyWith(
+                                          color: textColor,
+                                          fontSize: 36,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                  ),
+                                ),
+                        ),
                       ),
                     ],
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.s4,
+                    54 + AppSpacing.s1,
+                    AppSpacing.s4,
+                    32,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: .start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: .spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: .start,
+                            spacing: 4,
+                            children: [
+                              Text(
+                                profile.name,
+                                style: Theme.of(context).textTheme.displaySmall,
+                              ),
+                              Text("@${profile.username ?? 'user'}"),
+                            ],
+                          ),
 
-                const SizedBox(height: AppSpacing.s6),
+                          GestureDetector(
+                            onTap: () {
+                              context.push('/edit-profile');
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                border: Border.fromBorderSide(
+                                  BorderSide(color: AppColors.hairlineDark),
+                                ),
+                                borderRadius: AppRadius.pillBorderRadius,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.s4,
+                                vertical: AppSpacing.s2,
+                              ),
+                              child: Row(
+                                spacing: AppSpacing.s2 * 0.85,
+                                children: [
+                                  const Icon(
+                                    Icons.edit_note_rounded,
+                                    size: 18,
+                                    color: AppColors.text,
+                                  ),
+                                  Text(
+                                    "Edit",
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(color: AppColors.text),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
 
-                // Library Section
-                LibrarySection(profile: profile),
-                const SizedBox(height: 140),
+                      if (profile.bio != null && profile.bio!.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.s3),
+                        SizedBox(
+                          width: double.infinity,
+                          child: Text(profile.bio!),
+                        ),
+                      ],
+
+                      const SizedBox(height: AppSpacing.s4),
+
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.cardAlt.withValues(alpha: 0.5),
+                          borderRadius: AppRadius.lgBorderRadius,
+                          border: Border.all(color: AppColors.surface),
+                        ),
+                        child: ProfileStatsCard(
+                          followers: profile.followers?.length ?? 0,
+                          following: profile.following?.length ?? 0,
+                          rooms: profile.joinedRooms?.length ?? 0,
+                        ),
+                      ),
+
+                      const SizedBox(height: AppSpacing.s6),
+
+                      if (profile.tags != null && profile.tags!.isNotEmpty)
+                        Column(
+                          crossAxisAlignment: .start,
+                          children: [
+                            Text(
+                              "Favourite genres",
+                              style: Theme.of(context).textTheme.headlineMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.text2,
+                                  ),
+                            ),
+                            SizedBox(height: AppSpacing.s3),
+                            Wrap(
+                              direction: Axis.horizontal,
+                              spacing: AppSpacing.s2,
+                              runSpacing: AppSpacing.s2,
+                              children: [
+                                ...profile.tags!.map((e) {
+                                  return Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: AppSpacing.s4,
+                                      vertical: AppSpacing.s2 * 0.75,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.cardAlt.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      borderRadius: AppRadius.lgBorderRadius,
+                                      border: Border.all(
+                                        color: AppColors.cardAlt,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      e,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.text2,
+                                          ),
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ],
+                        ),
+
+                      const SizedBox(height: AppSpacing.s6),
+
+                      // Library Section
+                      LibrarySection(profile: profile),
+                      const SizedBox(height: 140),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-        ],
+        ),
       ),
-    ),
-      ),
-  );
-}
+    );
+  }
 }
 
 class ProfileStatsCard extends StatelessWidget {
@@ -344,7 +369,15 @@ class ProfileStatsCard extends StatelessWidget {
 }
 
 enum LibraryFilter { all, playlists, albums, artists, rooms }
-enum LibraryItemType { likedSongs, playlist, album, artist, myRoom, followedRoom }
+
+enum LibraryItemType {
+  likedSongs,
+  playlist,
+  album,
+  artist,
+  myRoom,
+  followedRoom,
+}
 
 class LibraryItem {
   final String id;
@@ -389,59 +422,74 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
         onTap: () => context.push('/playlist/liked-songs'),
       ),
       if (profile.playlists != null)
-        ...profile.playlists!.map((p) => LibraryItem(
-              id: p.id,
-              title: p.name,
-              subtitle: 'Playlist • ${profile.name}',
-              imageUrl: p.thumbnail,
-              type: LibraryItemType.playlist,
-              onTap: () => context.push('/playlist/${p.id}'),
-            )),
+        ...profile.playlists!.map(
+          (p) => LibraryItem(
+            id: p.id,
+            title: p.name,
+            subtitle: 'Playlist • ${profile.name}',
+            imageUrl: p.thumbnail,
+            type: LibraryItemType.playlist,
+            onTap: () => context.push('/playlist/${p.id}'),
+          ),
+        ),
       if (profile.likedPlaylists != null)
-        ...profile.likedPlaylists!.map((p) => LibraryItem(
-              id: p.id,
-              title: p.name,
-              subtitle: 'Playlist',
-              imageUrl: p.thumbnail,
-              type: LibraryItemType.playlist,
-              onTap: () => context.push('/playlist/${p.id}'),
-            )),
+        ...profile.likedPlaylists!.map(
+          (p) => LibraryItem(
+            id: p.id,
+            title: p.name,
+            subtitle: 'Playlist',
+            imageUrl: p.thumbnail,
+            type: LibraryItemType.playlist,
+            onTap: () => context.push('/playlist/${p.id}'),
+          ),
+        ),
       if (profile.likedAlbums != null)
-        ...profile.likedAlbums!.map((a) => LibraryItem(
-              id: a.id,
-              title: a.title,
-              subtitle: 'Album',
-              imageUrl: a.thumbnail,
-              type: LibraryItemType.album,
-              onTap: () => context.push('/album/${a.id}'),
-            )),
+        ...profile.likedAlbums!.map(
+          (a) => LibraryItem(
+            id: a.id,
+            title: a.title,
+            subtitle: 'Album',
+            imageUrl: a.thumbnail,
+            type: LibraryItemType.album,
+            onTap: () => context.push('/album/${a.id}'),
+          ),
+        ),
       if (profile.followedArtists != null)
-        ...profile.followedArtists!.map((a) => LibraryItem(
-              id: a.id,
-              title: a.name,
-              subtitle: 'Artist',
-              imageUrl: a.thumbnail,
-              type: LibraryItemType.artist,
-              onTap: () => context.push('/artist/${a.id}'),
-            )),
+        ...profile.followedArtists!.map(
+          (a) => LibraryItem(
+            id: a.id,
+            title: a.name,
+            subtitle: 'Artist',
+            imageUrl: a.thumbnail,
+            type: LibraryItemType.artist,
+            onTap: () => context.push('/artist/${a.id}'),
+          ),
+        ),
       if (profile.myRooms != null)
-        ...profile.myRooms!.map((r) => LibraryItem(
-              id: r.id,
-              title: r.name,
-              subtitle: 'My Room',
-              type: LibraryItemType.myRoom,
-              onTap: () => context.push('/room/${r.id}'),
-            )),
+        ...profile.myRooms!.map(
+          (r) => LibraryItem(
+            id: r.id,
+            title: r.name,
+            subtitle: 'My Room',
+            type: LibraryItemType.myRoom,
+            onTap: () => context.push('/room/${r.id}'),
+          ),
+        ),
       if (profile.joinedRooms != null)
         ...profile.joinedRooms!
-            .where((r) => r.createdById != profile.id && r.createdBy?.id != profile.id)
-            .map((r) => LibraryItem(
-                  id: r.id,
-                  title: r.name,
-                  subtitle: 'Room • ${r.createdBy?.name ?? "Unknown"}',
-                  type: LibraryItemType.followedRoom,
-                  onTap: () => context.push('/room/${r.id}'),
-                )),
+            .where(
+              (r) =>
+                  r.createdById != profile.id && r.createdBy?.id != profile.id,
+            )
+            .map(
+              (r) => LibraryItem(
+                id: r.id,
+                title: r.name,
+                subtitle: 'Room • ${r.createdBy?.name ?? "Unknown"}',
+                type: LibraryItemType.followedRoom,
+                onTap: () => context.push('/room/${r.id}'),
+              ),
+            ),
     ];
 
     final filteredItems = items.where((item) {
@@ -449,13 +497,15 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
         case LibraryFilter.all:
           return true;
         case LibraryFilter.playlists:
-          return item.type == LibraryItemType.playlist || item.type == LibraryItemType.likedSongs;
+          return item.type == LibraryItemType.playlist ||
+              item.type == LibraryItemType.likedSongs;
         case LibraryFilter.albums:
           return item.type == LibraryItemType.album;
         case LibraryFilter.artists:
           return item.type == LibraryItemType.artist;
         case LibraryFilter.rooms:
-          return item.type == LibraryItemType.myRoom || item.type == LibraryItemType.followedRoom;
+          return item.type == LibraryItemType.myRoom ||
+              item.type == LibraryItemType.followedRoom;
       }
     }).toList();
 
@@ -468,16 +518,18 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
             Text(
               "Your Library",
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: -0.5,
-                  ),
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: -0.5,
+              ),
             ),
             Row(
               children: [
                 IconButton(
                   icon: Icon(
-                    _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
+                    _isGridView
+                        ? Icons.view_list_rounded
+                        : Icons.grid_view_rounded,
                     color: AppColors.text2,
                   ),
                   onPressed: () {
@@ -487,7 +539,11 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
                   },
                 ),
                 IconButton(
-                  icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white, size: 28),
+                  icon: const Icon(
+                    Icons.add_circle_outline_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                   onPressed: () {
                     context.push('/playlist-add');
                   },
@@ -510,7 +566,9 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
                     filter.name[0].toUpperCase() + filter.name.substring(1),
                     style: TextStyle(
                       color: isSelected ? Colors.white : AppColors.text2,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                       fontSize: 14,
                     ),
                   ),
@@ -525,12 +583,17 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
                     side: BorderSide(
-                      color: isSelected ? AppColors.primary : AppColors.hairlineDark,
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.hairlineDark,
                       width: isSelected ? 1.5 : 1.0,
                     ),
                   ),
                   showCheckmark: false,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                 ),
               );
             }).toList(),
@@ -579,11 +642,13 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
 
   Widget _buildGridItem(LibraryItem item) {
     final isCircle = item.type == LibraryItemType.artist;
-    
+
     return GestureDetector(
       onTap: item.onTap,
       child: Column(
-        crossAxisAlignment: isCircle ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        crossAxisAlignment: isCircle
+            ? CrossAxisAlignment.center
+            : CrossAxisAlignment.start,
         children: [
           Expanded(
             child: AspectRatio(
@@ -607,10 +672,7 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
           const SizedBox(height: 4),
           Text(
             item.subtitle,
-            style: const TextStyle(
-              color: AppColors.text2,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: AppColors.text2, fontSize: 13),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: isCircle ? TextAlign.center : TextAlign.left,
@@ -657,10 +719,7 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
                 ],
               ),
             ),
-            const Icon(
-              Icons.more_vert_rounded,
-              color: AppColors.text3,
-            ),
+            const Icon(Icons.more_vert_rounded, color: AppColors.text3),
           ],
         ),
       ),
@@ -678,16 +737,24 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: size == null ? AppRadius.smBorderRadius : BorderRadius.circular(16),
-          boxShadow: size != null ? [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ] : null,
+          borderRadius: size == null
+              ? AppRadius.smBorderRadius
+              : BorderRadius.circular(16),
+          boxShadow: size != null
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ]
+              : null,
         ),
-        child: Icon(Icons.favorite, color: Colors.white, size: size != null ? 48 : 28),
+        child: Icon(
+          Icons.favorite,
+          color: Colors.white,
+          size: size != null ? 48 : 28,
+        ),
       );
     }
 
@@ -700,13 +767,15 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
       decoration: BoxDecoration(
         shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
         borderRadius: isCircle ? null : BorderRadius.circular(radius),
-        boxShadow: size != null ? [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ] : null,
+        boxShadow: size != null
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ]
+            : null,
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -720,7 +789,8 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
                 ? Image.network(item.imageUrl!, fit: BoxFit.cover)
                 : null,
           ),
-          if (item.type == LibraryItemType.myRoom || item.type == LibraryItemType.followedRoom)
+          if (item.type == LibraryItemType.myRoom ||
+              item.type == LibraryItemType.followedRoom)
             Positioned(
               bottom: size != null ? 8 : 4,
               right: size != null ? 8 : 4,
@@ -731,7 +801,9 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  item.type == LibraryItemType.myRoom ? Icons.podcasts_rounded : Icons.headset_mic_rounded,
+                  item.type == LibraryItemType.myRoom
+                      ? Icons.podcasts_rounded
+                      : Icons.headset_mic_rounded,
                   color: Colors.white,
                   size: size != null ? 18 : 14,
                 ),
@@ -742,4 +814,3 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
     );
   }
 }
-

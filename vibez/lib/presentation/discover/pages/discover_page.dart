@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/core/theme/typography.dart';
+import 'package:vibez/data/models/currently_playing.dart';
 import 'package:vibez/data/models/recent_item.dart';
 import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
@@ -14,7 +15,6 @@ class DiscoverPage extends ConsumerWidget {
   const DiscoverPage({super.key});
 
   static List<RecentItem>? _cachedGridItems;
-  static List<Song>? _cachedSongs;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -23,7 +23,7 @@ class DiscoverPage extends ConsumerWidget {
     final recentSongs = playback.recentlyPlayed;
     final currentSongId = playback.currentSong?.id;
 
-    if (recentItems.isEmpty && recentSongs.isEmpty) {
+    if (recentItems.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -40,14 +40,12 @@ class DiscoverPage extends ConsumerWidget {
       );
     }
 
-    _cachedGridItems ??= _buildGridItems(recentItems, recentSongs);
-    _cachedSongs ??= List.unmodifiable(recentSongs);
+    _cachedGridItems ??= _buildGridItems(recentItems);
     final gridItems = _cachedGridItems!;
 
     return RefreshIndicator(
       onRefresh: () async {
         _cachedGridItems = null;
-        _cachedSongs = null;
       },
       color: AppColors.primary,
       child: ListView(
@@ -65,8 +63,8 @@ class DiscoverPage extends ConsumerWidget {
             items: gridItems,
             currentSongId: currentSongId,
             allSongs: recentSongs,
-            onPlay: (item) => _onItemTap(context, ref, item, _cachedSongs!),
-            onShuffle: () => _onShuffle(ref, _cachedSongs!),
+            onPlay: (item) => _onItemTap(context, ref, item, recentSongs),
+            onShuffle: () => _onShuffle(ref, recentSongs),
           ),
         ),
       ],
@@ -74,10 +72,7 @@ class DiscoverPage extends ConsumerWidget {
     );
   }
 
-  List<RecentItem> _buildGridItems(
-    List<RecentItem> recentItems,
-    List<Song> recentSongs,
-  ) {
+  List<RecentItem> _buildGridItems(List<RecentItem> recentItems) {
     final seen = <String>{};
     final items = <RecentItem>[];
 
@@ -85,20 +80,6 @@ class DiscoverPage extends ConsumerWidget {
       final key = '${item.type.name}_${item.id}';
       if (seen.add(key) && items.length < 8) {
         items.add(item);
-      }
-    }
-
-    for (final song in recentSongs) {
-      final key = 'song_${song.id}';
-      if (seen.add(key) && items.length < 8) {
-        items.add(
-          RecentItem(
-            id: song.id,
-            name: song.title,
-            thumbnail: song.thumbnail,
-            type: RecentItemType.song,
-          ),
-        );
       }
     }
 
@@ -123,6 +104,14 @@ class DiscoverPage extends ConsumerWidget {
       );
       ref.read(playbackProvider.notifier).playSong(song);
     } else {
+      ref.read(playbackProvider.notifier).setCurrentlyPlaying(
+        CurrentlyPlaying(
+          sourceId: item.id,
+          sourceName: item.name,
+          type: PlayingSourceType.values.byName(item.type.name),
+          thumbnail: item.thumbnail,
+        ),
+      );
       context.push(item.routePath);
     }
   }

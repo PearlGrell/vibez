@@ -42,36 +42,40 @@ class _LandingScreenState extends State<LandingScreen> {
         controller: _controller,
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          KeepAlivePage(child: DiscoverScreen(
-            searchController: searchController,
-          )),
-          KeepAlivePage(child: ProfileScreen()),
+          KeepAlivePage(
+            child: DiscoverScreen(searchController: searchController),
+          ),
+          KeepAlivePage(
+            child: ProfileScreen(
+              onBack: _navigateToDiscover,
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: AppBottomNavbar(
         currentIndex: _currentIndex,
         buttonTap: () {
           showModalBottomSheet(
-              context: context,
-              useRootNavigator: true,
-              isDismissible: true,
-              enableDrag: true,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (context) {
-                return ClipRRect(
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(AppRadius.lg),
-                    topRight: Radius.circular(AppRadius.lg),
-                  ),
-                  child: const AddSheet(),
-                );
-              }
+            context: context,
+            useRootNavigator: true,
+            isDismissible: true,
+            enableDrag: true,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) {
+              return ClipRRect(
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(AppRadius.lg),
+                  topRight: Radius.circular(AppRadius.lg),
+                ),
+                child: const AddSheet(),
+              );
+            },
           );
         },
         onTap: (idx) {
           setState(() {
-            if(idx == 0){
+            if (idx == 0) {
               searchController.clear();
             }
             _currentIndex = idx;
@@ -84,6 +88,17 @@ class _LandingScreenState extends State<LandingScreen> {
         },
       ),
     );
+  }
+
+  void _navigateToDiscover(){
+    setState(() {
+      _currentIndex=0;
+    });
+    _controller.animateToPage(
+            0,
+            duration: Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+          );
   }
 }
 

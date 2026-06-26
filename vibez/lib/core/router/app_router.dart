@@ -64,6 +64,22 @@ class AppRouter {
             return RoomDetailsScreen(roomId: id);
           },
         ),
+        GoRoute(
+          path: RouteLocation.roomPlayer,
+          name: RouteName.roomPlayer,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return RoomPlayerScreen(roomId: id);
+          },
+        ),
+        GoRoute(
+          path: RouteLocation.roomDj,
+          name: RouteName.roomDj,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return DjControlScreen(roomId: id);
+          },
+        ),
         ShellRoute(
           builder: (context, state, child) {
             return AppShell(location: state.matchedLocation, child: child);
@@ -78,7 +94,9 @@ class AppRouter {
             GoRoute(
               path: RouteLocation.profile,
               name: RouteName.profile,
-              builder: (context, state) => ProfileScreen(),
+              builder: (context, state) {
+                return ProfileScreen(onBack: () {});
+              },
             ),
             GoRoute(
               path: RouteLocation.playlistDetail,

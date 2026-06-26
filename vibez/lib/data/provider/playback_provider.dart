@@ -110,6 +110,7 @@ final playbackProvider = NotifierProvider<PlaybackProvider, PlaybackState>(
 
 class PlaybackProvider extends Notifier<PlaybackState> {
   final _random = Random();
+  bool _playingFromCollection = false;
 
   @override
   PlaybackState build() {
@@ -167,6 +168,7 @@ class PlaybackProvider extends Notifier<PlaybackState> {
       clearPlaybackInfo: true,
       playbackLoadState: LoadState.loading,
     );
+    _playingFromCollection = true;
     await _loadAndPlay(current);
   }
 
@@ -558,14 +560,19 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     final encoded = jsonEncode(updated.map((s) => s.toJson()).toList());
     prefs.setString('recentlyPlayed', encoded);
 
-    _addRecentItem(
-      RecentItem(
-        id: song.id,
-        name: song.title,
-        thumbnail: song.thumbnail,
-        type: RecentItemType.song,
-      ),
-    );
+    final skipSongItem = _playingFromCollection ||
+        (state.currentlyPlaying != null &&
+            state.currentlyPlaying!.type != PlayingSourceType.song);
+    if (!skipSongItem) {
+      _addRecentItem(
+        RecentItem(
+          id: song.id,
+          name: song.title,
+          thumbnail: song.thumbnail,
+          type: RecentItemType.song,
+        ),
+      );
+    }
   }
 
   void _addRecentItem(RecentItem item) {
