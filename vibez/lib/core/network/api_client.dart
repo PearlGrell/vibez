@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
@@ -116,5 +118,31 @@ class ApiClient {
     );
 
     return response.data as T;
+  }
+
+  Future<Duration> getServerTimeOffset() async {
+    try {
+      final clientStart = DateTime.now();
+      Response response;
+      try {
+        response = await _dio.get('/');
+      } on DioException catch (e) {
+        if (e.response != null) {
+          response = e.response!;
+        } else {
+          return Duration.zero;
+        }
+      }
+      final clientEnd = DateTime.now();
+      final serverDateStr = response.headers.value('date');
+      if (serverDateStr != null) {
+        final serverDate = HttpDate.parse(serverDateStr);
+        final rtt = clientEnd.difference(clientStart);
+        final latency = rtt ~/ 2;
+        final estimatedServerTime = serverDate.add(latency);
+        return estimatedServerTime.difference(clientEnd);
+      }
+    } catch (_) {}
+    return Duration.zero;
   }
 }

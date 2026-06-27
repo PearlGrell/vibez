@@ -14,7 +14,7 @@ import 'package:vibez/data/provider/playback_provider.dart';
 import 'package:vibez/data/provider/song_cache_provider.dart' hide LoadState;
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/presentation/player/widgets/custom_track_shape.dart';
-import 'package:vibez/data/services/audio_service.dart';
+import 'package:vibez/data/services/player_audio_service.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
 import 'package:vibez/presentation/player/credits_screen.dart';
@@ -508,53 +508,67 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              Builder(builder: (context) {
-                                final artists = queue.currentSong!.artists;
-                                if (artists == null || artists.isEmpty) {
-                                  return Text(
-                                    'Unknown Artist',
-                                    style: Theme.of(context).textTheme.titleMedium
-                                        ?.copyWith(
-                                          color: AppColors.text2,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                  );
-                                }
-                                return SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    children: [
-                                      for (int i = 0; i < artists.length; i++) ...[
-                                        GestureDetector(
-                                          onTap: artists[i].id.isNotEmpty
-                                              ? () {
-                                                  Navigator.pop(context);
-                                                  context.push('/artist/${artists[i].id}');
-                                                }
-                                              : null,
-                                          child: Text(
-                                            artists[i].name,
-                                            style: Theme.of(context).textTheme.titleMedium
-                                                ?.copyWith(
-                                                  color: AppColors.text2,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
+                              Builder(
+                                builder: (context) {
+                                  final artists = queue.currentSong!.artists;
+                                  if (artists == null || artists.isEmpty) {
+                                    return Text(
+                                      'Unknown Artist',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            color: AppColors.text2,
+                                            fontWeight: FontWeight.w500,
                                           ),
-                                        ),
-                                        if (i < artists.length - 1)
-                                          Text(
-                                            ", ",
-                                            style: Theme.of(context).textTheme.titleMedium
-                                                ?.copyWith(
-                                                  color: AppColors.text2,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
+                                    );
+                                  }
+                                  return SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Row(
+                                      children: [
+                                        for (
+                                          int i = 0;
+                                          i < artists.length;
+                                          i++
+                                        ) ...[
+                                          GestureDetector(
+                                            onTap: artists[i].id.isNotEmpty
+                                                ? () {
+                                                    Navigator.pop(context);
+                                                    context.push(
+                                                      '/artist/${artists[i].id}',
+                                                    );
+                                                  }
+                                                : null,
+                                            child: Text(
+                                              artists[i].name,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.copyWith(
+                                                    color: AppColors.text2,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                            ),
                                           ),
+                                          if (i < artists.length - 1)
+                                            Text(
+                                              ", ",
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.copyWith(
+                                                    color: AppColors.text2,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                            ),
+                                        ],
                                       ],
-                                    ],
-                                  ),
-                                );
-                              }),
+                                    ),
+                                  );
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -583,11 +597,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     const SizedBox(height: AppSpacing.s4),
 
                     StreamBuilder<Duration>(
-                      stream: AudioService.vibezHandler.positionStream,
+                      stream: PlayerAudioService.vibezHandler.positionStream,
                       builder: (context, snapshot) {
                         final position = snapshot.data ?? Duration.zero;
-                        final loadedDuration =
-                            AudioService.handler.mediaItem.value?.duration;
+                        final loadedDuration = PlayerAudioService
+                            .handler
+                            .mediaItem
+                            .value
+                            ?.duration;
                         final totalDuration =
                             loadedDuration ??
                             Duration(seconds: queue.currentSong?.duration ?? 0);
@@ -632,7 +649,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   final newPosition = Duration(
                                     milliseconds: (v * totalMs).round(),
                                   );
-                                  AudioService.handler.seek(newPosition);
+                                  PlayerAudioService.handler.seek(newPosition);
                                   setState(() {
                                     _isDragging = false;
                                   });

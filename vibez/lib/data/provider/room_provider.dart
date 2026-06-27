@@ -17,6 +17,8 @@ final roomProvider = ChangeNotifierProvider.autoDispose
       return RoomProvider(ref, roomId);
     });
 
+final activeRoomIdProvider = StateProvider<String?>((ref) => null);
+
 class RoomProvider extends ChangeNotifier {
   final Ref _ref;
   final String roomId;
@@ -25,6 +27,8 @@ class RoomProvider extends ChangeNotifier {
   StreamSubscription? _globalSub;
   StreamSubscription? _queueSub;
   StreamSubscription? _connectionSub;
+
+  bool _disposed = false;
 
   RoomStatus status = RoomStatus.loading;
   Room? room;
@@ -171,7 +175,11 @@ class RoomProvider extends ChangeNotifier {
   }
 
   Future<void> stop() async {
-    await _socket.emitWithAck('room:stop', {'roomId': roomId});
+    try {
+      await _socket.emitWithAck('room:stop', {'roomId': roomId});
+    } catch (e) {
+      debugPrint("Error emitting room:stop: $e");
+    }
   }
 
   Future<void> removeSong(String queueItemId) async {
@@ -182,7 +190,7 @@ class RoomProvider extends ChangeNotifier {
   }
 
   Future<void> joinRoom() async {
-    _ref.read(playbackProvider.notifier).pause();
+    _ref.read(playbackProvider.notifier).stopAndClear();
     _ref.read(playbackProvider.notifier).clearQueue();
 
     await _socket.emitWithAck('room:join', {'roomId': roomId});
@@ -190,16 +198,19 @@ class RoomProvider extends ChangeNotifier {
       await _socket.emitWithAck('room:join_dj', {'roomId': roomId});
     }
     isInRoom = true;
+    _ref.read(activeRoomIdProvider.notifier).state = roomId;
     notifyListeners();
   }
 
   Future<void> leaveRoom() async {
     final userId = _ref.read(userProvider)?.id;
     if (room?.currentDj?.id == userId) {
+      await stop();
       await _socket.emitWithAck('room:leave_dj', {'roomId': roomId});
     }
     await _socket.emitWithAck('room:leave', {'roomId': roomId});
     isInRoom = false;
+    _ref.read(activeRoomIdProvider.notifier).state = null;
     notifyListeners();
   }
 
@@ -245,7 +256,15 @@ class RoomProvider extends ChangeNotifier {
   }
 
   @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
+  @override
   void dispose() {
+    _disposed = true;
     _sub?.cancel();
     _globalSub?.cancel();
     _queueSub?.cancel();

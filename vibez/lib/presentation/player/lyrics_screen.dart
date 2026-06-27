@@ -10,7 +10,7 @@ import 'package:vibez/core/theme/typography.dart';
 import 'package:vibez/data/models/currently_playing.dart';
 import 'package:vibez/data/provider/playback_provider.dart' hide LoadState;
 import 'package:vibez/data/provider/song_cache_provider.dart';
-import 'package:vibez/data/services/audio_service.dart';
+import 'package:vibez/data/services/player_audio_service.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
@@ -22,7 +22,6 @@ class LyricsScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<LyricsScreen> createState() => _LyricsScreenState();
 }
-
 
 class _LyricsScreenState extends ConsumerState<LyricsScreen> {
   final ItemScrollController _itemScrollController = ItemScrollController();
@@ -63,7 +62,9 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(songCacheProvider.notifier).loadLyrics();
     });
-    _positionSub = AudioService.vibezHandler.positionStream.listen(_onPosition);
+    _positionSub = PlayerAudioService.vibezHandler.positionStream.listen(
+      _onPosition,
+    );
   }
 
   @override
@@ -104,7 +105,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     final cache = ref.watch(songCacheProvider);
     final currentSong = queue.currentSong;
     return Container(
-      color:  AppColors.background,
+      color: AppColors.background,
       padding: const EdgeInsets.only(top: kToolbarHeight - AppSpacing.s1),
       child: Scaffold(
         backgroundColor: AppColors.background,
@@ -172,7 +173,11 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
               child: Row(
                 spacing: AppSpacing.s2,
                 children: [
-                  Icon(Icons.mic_none_outlined, size: 14, color: AppColors.text2),
+                  Icon(
+                    Icons.mic_none_outlined,
+                    size: 14,
+                    color: AppColors.text2,
+                  ),
                   Text(
                     "Lyrics",
                     style: Theme.of(
@@ -229,7 +234,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       StreamBuilder<Duration>(
-                        stream: AudioService.vibezHandler.positionStream,
+                        stream: PlayerAudioService.vibezHandler.positionStream,
                         builder: (context, snapshot) {
                           final position = snapshot.data ?? Duration.zero;
                           final totalDuration = Duration(
@@ -336,10 +341,13 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                 ),
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: (){
-                    AudioService.handler.seek(Duration(milliseconds: block.startTime));
+                  onTap: () {
+                    PlayerAudioService.handler.seek(
+                      Duration(milliseconds: block.startTime),
+                    );
                   },
-                  child: Text(block.text)),
+                  child: Text(block.text),
+                ),
               ),
             );
           },
@@ -347,8 +355,6 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     }
   }
 }
-
-
 
 String _formatDuration(Duration duration) {
   final minutes = duration.inMinutes;

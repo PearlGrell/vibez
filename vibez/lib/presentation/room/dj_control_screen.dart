@@ -11,7 +11,9 @@ import 'package:vibez/data/models/queue_item.dart';
 import 'package:vibez/data/models/request_item.dart';
 import 'package:vibez/data/models/search_result.dart';
 import 'package:vibez/data/provider/room_provider.dart';
+import 'package:vibez/data/provider/room_playback_provider.dart';
 import 'package:vibez/data/provider/user_provider.dart';
+import 'package:vibez/data/services/player_audio_service.dart';
 import 'package:vibez/data/repositories/search_repository.dart';
 import 'package:vibez/presentation/common/skeleton.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
@@ -31,6 +33,7 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(roomPlaybackProvider);
     final roomRef = ref.watch(roomProvider(widget.roomId));
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -51,8 +54,6 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
       ),
     );
   }
-
-  // ── Header ──
 
   Widget _buildHeader(BuildContext context, RoomProvider roomRef) {
     return Padding(
@@ -123,8 +124,6 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
     );
   }
 
-  // ── Tab Bar ──
-
   Widget _buildTabBar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
@@ -132,9 +131,7 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
         children: [
           Expanded(child: _buildTab('Booth', 0)),
           const SizedBox(width: AppSpacing.s2),
-          Expanded(
-            child: _buildTab('Requests · ${0}', 1), // TODO: add requests number
-          ),
+          Expanded(child: _buildTab('Requests · ${0}', 1)),
         ],
       ),
     );
@@ -164,8 +161,6 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
       ),
     );
   }
-
-  // ── Booth Tab ──
 
   Widget _buildBoothTab(BuildContext context, RoomProvider roomRef) {
     return SingleChildScrollView(
@@ -198,8 +193,6 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
       ),
     );
   }
-
-  // ── Now Playing ──
 
   Widget _buildNowPlaying(BuildContext context, RoomProvider roomRef) {
     final currentSong = roomRef.room?.currentSong;
@@ -283,28 +276,16 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.s5),
-          StreamBuilder(
-            stream: Stream.periodic(
-              Duration(milliseconds: 1),
-              (_) => DateTime.now(),
-            ),
+          StreamBuilder<Duration>(
+            stream: PlayerAudioService.roomHandler.positionStream,
             builder: (context, snapshot) {
-              final current = snapshot.data ?? DateTime.now();
-              final startedAt = roomRef.room?.startedAt;
-              final durationMs =
-                  (roomRef.room?.currentSong?.duration ?? 0) * 1000;
-
-              final elapsedMs = startedAt == null
-                  ? 0
-                  : current
-                        .difference(startedAt)
-                        .inMilliseconds
-                        .clamp(0, durationMs);
-
+              final position = snapshot.data ?? Duration.zero;
+              final durationMs = (roomRef.room?.currentSong?.duration ?? 0) * 1000;
+              final elapsedMs = position.inMilliseconds.clamp(0, durationMs);
               final progress = durationMs == 0 ? 0.0 : elapsedMs / durationMs;
 
               return Column(
-                mainAxisSize: .min,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(2),
@@ -322,9 +303,7 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        _formatDuration(
-                          Duration(milliseconds: elapsedMs),
-                        ), // TODO: Add elapsed
+                        _formatDuration(Duration(milliseconds: elapsedMs)),
                         style: const TextStyle(
                           color: AppColors.text2,
                           fontSize: 12,
@@ -406,8 +385,6 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
     );
   }
 
-  // ── Up Next Header ──
-
   Widget _buildUpNextHeader(BuildContext context, RoomProvider roomRef) {
     return Row(
       children: [
@@ -446,8 +423,6 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
       ],
     );
   }
-
-  // ── Queue Item ──
 
   Widget _buildQueueItem(
     BuildContext context,
@@ -574,10 +549,7 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
     );
   }
 
-  // ── Requests Tab ──
-
   Widget _buildRequestsTab(BuildContext context) {
-    // TODO: Wire up to actual requests list from roomRef
     final requests = <RequestItem>[];
 
     if (requests.isEmpty) {
@@ -779,8 +751,6 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
     );
   }
 
-  // ── Add to Queue Bottom Sheet ──
-
   void _showAddToQueueSheet(BuildContext context, RoomProvider roomRef) {
     showModalBottomSheet(
       context: context,
@@ -821,8 +791,6 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
     return '$minutes:$seconds';
   }
 }
-
-// ── Add to Queue Sheet ──
 
 class _AddToQueueSheet extends StatefulWidget {
   final String roomId;

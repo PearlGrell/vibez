@@ -2,14 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vibez/core/utils/app_logger.dart';
 import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/models/artist.dart';
 import 'package:vibez/data/models/playback_info.dart';
 import 'package:vibez/data/models/lyrics.dart';
 import 'package:vibez/data/models/song_credits.dart';
 import 'package:vibez/data/repositories/song_repository.dart';
-
-// ── Enums & Helpers ────────────────────────────────────────────────────────
 
 enum LoadState { idle, loading, success, error }
 
@@ -18,8 +17,6 @@ class CacheEntry<T> {
   final DateTime fetchedAt;
   const CacheEntry({required this.data, required this.fetchedAt});
 }
-
-// ── State ──────────────────────────────────────────────────────────────────
 
 class SongCacheState {
   final Lyrics? currentLyrics;
@@ -58,7 +55,9 @@ class SongCacheState {
     }
     return SongCacheState(
       currentLyrics: clearLyrics ? null : (currentLyrics ?? this.currentLyrics),
-      currentCredits: clearCredits ? null : (currentCredits ?? this.currentCredits),
+      currentCredits: clearCredits
+          ? null
+          : (currentCredits ?? this.currentCredits),
       relatedSongs: relatedSongs ?? this.relatedSongs,
       lyricsLoadState: lyricsLoadState ?? this.lyricsLoadState,
       creditsLoadState: creditsLoadState ?? this.creditsLoadState,
@@ -69,20 +68,17 @@ class SongCacheState {
   }
 }
 
-// ── Provider ───────────────────────────────────────────────────────────────
-
-final songCacheProvider =
-    NotifierProvider<SongCacheProvider, SongCacheState>(SongCacheProvider.new);
+final songCacheProvider = NotifierProvider<SongCacheProvider, SongCacheState>(
+  SongCacheProvider.new,
+);
 
 class SongCacheProvider extends Notifier<SongCacheState> {
-  // ── In-memory caches ───────────────────────────────────────────────────
   final Map<String, CacheEntry<Song>> _songCache = {};
   final Map<String, CacheEntry<PlaybackInfo>> _playbackInfoCache = {};
   final Map<String, CacheEntry<List<Song>>> _relatedCache = {};
   final Map<String, CacheEntry<Lyrics>> _lyricsCache = {};
   final Map<String, CacheEntry<List<Credit>>> _creditsCache = {};
 
-  // ── Deduplication maps (prevent parallel fetches for the same ID) ──────
   final Map<String, Future<Song?>> _pendingSong = {};
   final Map<String, Future<PlaybackInfo?>> _pendingPlaybackInfo = {};
   final Map<String, Future<Lyrics?>> _pendingLyrics = {};
@@ -94,8 +90,6 @@ class SongCacheProvider extends Notifier<SongCacheState> {
     _loadCacheFromDisk();
     return const SongCacheState();
   }
-
-  // ── Public: Data Fetching ──────────────────────────────────────────────
 
   static bool _isSongComplete(Song song) {
     if (song.duration <= 0) return false;
@@ -111,17 +105,20 @@ class SongCacheProvider extends Notifier<SongCacheState> {
     }
     if (_pendingSong.containsKey(id)) return _pendingSong[id]!;
 
-    final future = SongRepository.instance.getSong(id).then((song) {
-      _pendingSong.remove(id);
-      if (song != null) {
-        _songCache[id] = CacheEntry(data: song, fetchedAt: DateTime.now());
-        _saveCacheToDisk();
-      }
-      return song;
-    }).catchError((err) {
-      _pendingSong.remove(id);
-      throw err;
-    });
+    final future = SongRepository.instance
+        .getSong(id)
+        .then((song) {
+          _pendingSong.remove(id);
+          if (song != null) {
+            _songCache[id] = CacheEntry(data: song, fetchedAt: DateTime.now());
+            _saveCacheToDisk();
+          }
+          return song;
+        })
+        .catchError((err) {
+          _pendingSong.remove(id);
+          throw err;
+        });
     _pendingSong[id] = future;
     return future;
   }
@@ -129,7 +126,8 @@ class SongCacheProvider extends Notifier<SongCacheState> {
   Future<PlaybackInfo?> fetchPlaybackInfo(String id) {
     if (_playbackInfoCache.containsKey(id)) {
       final entry = _playbackInfoCache[id]!;
-      if (DateTime.now().difference(entry.fetchedAt) < const Duration(minutes: 30)) {
+      if (DateTime.now().difference(entry.fetchedAt) <
+          const Duration(minutes: 30)) {
         return Future.value(entry.data);
       } else {
         _playbackInfoCache.remove(id);
@@ -139,18 +137,22 @@ class SongCacheProvider extends Notifier<SongCacheState> {
       return _pendingPlaybackInfo[id]!;
     }
 
-    final future =
-        SongRepository.instance.getPlaybackUrl(id).then((info) {
-      _pendingPlaybackInfo.remove(id);
-      if (info != null) {
-        _playbackInfoCache[id] =
-            CacheEntry(data: info, fetchedAt: DateTime.now());
-      }
-      return info;
-    }).catchError((err) {
-      _pendingPlaybackInfo.remove(id);
-      throw err;
-    });
+    final future = SongRepository.instance
+        .getPlaybackUrl(id)
+        .then((info) {
+          _pendingPlaybackInfo.remove(id);
+          if (info != null) {
+            _playbackInfoCache[id] = CacheEntry(
+              data: info,
+              fetchedAt: DateTime.now(),
+            );
+          }
+          return info;
+        })
+        .catchError((err) {
+          _pendingPlaybackInfo.remove(id);
+          throw err;
+        });
     _pendingPlaybackInfo[id] = future;
     return future;
   }
@@ -161,34 +163,38 @@ class SongCacheProvider extends Notifier<SongCacheState> {
     }
     if (_pendingRelated.containsKey(id)) return _pendingRelated[id]!;
 
-    final future =
-        SongRepository.instance.getRelated(id).then((related) {
-      _pendingRelated.remove(id);
-      if (related != null) {
-        final mapped = related
-            .map((r) => Song(
-                  id: r.id,
-                  title: r.title,
-                  duration: 0,
-                  thumbnail: r.thumbnail,
-                  artists: [Artist(id: '', name: r.artists)],
-                ))
-            .toList();
+    final future = SongRepository.instance
+        .getRelated(id)
+        .then((related) {
+          _pendingRelated.remove(id);
+          if (related != null) {
+            final mapped = related
+                .map(
+                  (r) => Song(
+                    id: r.id,
+                    title: r.title,
+                    duration: 0,
+                    thumbnail: r.thumbnail,
+                    artists: [Artist(id: '', name: r.artists)],
+                  ),
+                )
+                .toList();
 
-        _relatedCache[id] =
-            CacheEntry(data: mapped, fetchedAt: DateTime.now());
-        return mapped;
-      }
-      return null;
-    }).catchError((err) {
-      _pendingRelated.remove(id);
-      throw err;
-    });
+            _relatedCache[id] = CacheEntry(
+              data: mapped,
+              fetchedAt: DateTime.now(),
+            );
+            return mapped;
+          }
+          return null;
+        })
+        .catchError((err) {
+          _pendingRelated.remove(id);
+          throw err;
+        });
     _pendingRelated[id] = future;
     return future;
   }
-
-  // ── Public: Lazy-Loaded Display Data (Lyrics, Credits, Related) ────────
 
   void onSongChanged(String? songId) {
     if (songId == null) {
@@ -207,12 +213,15 @@ class SongCacheProvider extends Notifier<SongCacheState> {
       currentLyrics: cachedLyrics,
       currentCredits: cachedCredits,
       relatedSongs: cachedRelated,
-      lyricsLoadState:
-          cachedLyrics != null ? LoadState.success : LoadState.idle,
-      creditsLoadState:
-          cachedCredits != null ? LoadState.success : LoadState.idle,
-      relatedSongsLoadState:
-          cachedRelated.isNotEmpty ? LoadState.success : LoadState.idle,
+      lyricsLoadState: cachedLyrics != null
+          ? LoadState.success
+          : LoadState.idle,
+      creditsLoadState: cachedCredits != null
+          ? LoadState.success
+          : LoadState.idle,
+      relatedSongsLoadState: cachedRelated.isNotEmpty
+          ? LoadState.success
+          : LoadState.idle,
     );
 
     Future.microtask(() => _loadDisplayData(songId));
@@ -229,8 +238,7 @@ class SongCacheProvider extends Notifier<SongCacheState> {
         state = state.copyWith(
           currentLyrics: lyrics,
           clearLyrics: lyrics == null,
-          lyricsLoadState:
-              lyrics != null ? LoadState.success : LoadState.idle,
+          lyricsLoadState: lyrics != null ? LoadState.success : LoadState.idle,
         );
       }
     } catch (_) {
@@ -253,8 +261,9 @@ class SongCacheProvider extends Notifier<SongCacheState> {
       if (state.activeSongId == songId) {
         state = state.copyWith(
           currentCredits: credits,
-          creditsLoadState:
-              credits != null ? LoadState.success : LoadState.error,
+          creditsLoadState: credits != null
+              ? LoadState.success
+              : LoadState.error,
         );
       }
     } catch (_) {
@@ -266,8 +275,6 @@ class SongCacheProvider extends Notifier<SongCacheState> {
 
   Map<String, CacheEntry<Song>> get songCache => _songCache;
 
-  /// Force-evicts a stale playback URL so the next [fetchPlaybackInfo] call
-  /// goes back to the network (used after a 403 / timeout error).
   void evictPlaybackInfo(String id) {
     _playbackInfoCache.remove(id);
     _pendingPlaybackInfo.remove(id);
@@ -286,26 +293,28 @@ class SongCacheProvider extends Notifier<SongCacheState> {
     }
   }
 
-  // ── Private: Deduplicated Fetchers ─────────────────────────────────────
-
   Future<Lyrics?> _fetchLyrics(String id) {
     if (_lyricsCache.containsKey(id)) {
       return Future.value(_lyricsCache[id]!.data);
     }
     if (_pendingLyrics.containsKey(id)) return _pendingLyrics[id]!;
 
-    final future =
-        SongRepository.instance.getLyrics(id).then((lyrics) {
-      _pendingLyrics.remove(id);
-      if (lyrics != null) {
-        _lyricsCache[id] =
-            CacheEntry(data: lyrics, fetchedAt: DateTime.now());
-      }
-      return lyrics;
-    }).catchError((err) {
-      _pendingLyrics.remove(id);
-      throw err;
-    });
+    final future = SongRepository.instance
+        .getLyrics(id)
+        .then((lyrics) {
+          _pendingLyrics.remove(id);
+          if (lyrics != null) {
+            _lyricsCache[id] = CacheEntry(
+              data: lyrics,
+              fetchedAt: DateTime.now(),
+            );
+          }
+          return lyrics;
+        })
+        .catchError((err) {
+          _pendingLyrics.remove(id);
+          throw err;
+        });
     _pendingLyrics[id] = future;
     return future;
   }
@@ -316,18 +325,22 @@ class SongCacheProvider extends Notifier<SongCacheState> {
     }
     if (_pendingCredits.containsKey(id)) return _pendingCredits[id]!;
 
-    final future =
-        SongRepository.instance.getCredits(id).then((credits) {
-      _pendingCredits.remove(id);
-      if (credits != null) {
-        _creditsCache[id] =
-            CacheEntry(data: credits, fetchedAt: DateTime.now());
-      }
-      return credits;
-    }).catchError((err) {
-      _pendingCredits.remove(id);
-      throw err;
-    });
+    final future = SongRepository.instance
+        .getCredits(id)
+        .then((credits) {
+          _pendingCredits.remove(id);
+          if (credits != null) {
+            _creditsCache[id] = CacheEntry(
+              data: credits,
+              fetchedAt: DateTime.now(),
+            );
+          }
+          return credits;
+        })
+        .catchError((err) {
+          _pendingCredits.remove(id);
+          throw err;
+        });
     _pendingCredits[id] = future;
     return future;
   }
@@ -341,8 +354,9 @@ class SongCacheProvider extends Notifier<SongCacheState> {
           state = state.copyWith(
             currentLyrics: lyrics,
             clearLyrics: lyrics == null,
-            lyricsLoadState:
-                lyrics != null ? LoadState.success : LoadState.idle,
+            lyricsLoadState: lyrics != null
+                ? LoadState.success
+                : LoadState.idle,
           );
         }
       } catch (_) {
@@ -363,8 +377,9 @@ class SongCacheProvider extends Notifier<SongCacheState> {
           state = state.copyWith(
             currentCredits: credits,
             clearCredits: credits == null,
-            creditsLoadState:
-                credits != null ? LoadState.success : LoadState.idle,
+            creditsLoadState: credits != null
+                ? LoadState.success
+                : LoadState.idle,
           );
         }
       } catch (_) {
@@ -393,9 +408,8 @@ class SongCacheProvider extends Notifier<SongCacheState> {
           }
         });
       }
-
     } catch (e) {
-      // ignore
+      AppLogger.instance.error("", error: e);
     }
   }
 
@@ -403,7 +417,10 @@ class SongCacheProvider extends Notifier<SongCacheState> {
     try {
       if (_songCache.length > 500) {
         final sortedKeys = _songCache.keys.toList()
-          ..sort((a, b) => _songCache[b]!.fetchedAt.compareTo(_songCache[a]!.fetchedAt));
+          ..sort(
+            (a, b) =>
+                _songCache[b]!.fetchedAt.compareTo(_songCache[a]!.fetchedAt),
+          );
         final keysToRemove = sortedKeys.skip(200);
         for (var k in keysToRemove) {
           _songCache.remove(k);
@@ -412,14 +429,15 @@ class SongCacheProvider extends Notifier<SongCacheState> {
 
       final dir = await getApplicationDocumentsDirectory();
       final file = File('${dir.path}/song_cache.json');
-      final data = _songCache.map((key, value) => MapEntry(key, {
-            'fetchedAt': value.fetchedAt.toIso8601String(),
-            'data': value.data.toJson(),
-          }));
+      final data = _songCache.map(
+        (key, value) => MapEntry(key, {
+          'fetchedAt': value.fetchedAt.toIso8601String(),
+          'data': value.data.toJson(),
+        }),
+      );
       await file.writeAsString(jsonEncode(data));
     } catch (e) {
-      // ignore
+      AppLogger.instance.error("", error: e);
     }
   }
-
 }

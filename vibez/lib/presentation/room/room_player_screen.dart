@@ -7,8 +7,11 @@ import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/shadows.dart';
 import 'package:vibez/core/theme/spacing.dart';
+import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/models/user.dart';
 import 'package:vibez/data/provider/room_provider.dart';
+import 'package:vibez/data/provider/room_playback_provider.dart';
+import 'package:vibez/data/services/player_audio_service.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/equalizer_bars.dart';
@@ -39,6 +42,7 @@ class RoomPlayerScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(roomPlaybackProvider);
     final roomRef = ref.watch(roomProvider(roomId));
     final userRef = ref.watch(userProvider);
     final room = roomRef.room;
@@ -49,6 +53,8 @@ class RoomPlayerScreen extends ConsumerWidget {
       Navigator.of(context).pop();
       return SizedBox.shrink();
     }
+
+    final song = room.currentSong;
 
     return PopScope(
       canPop: false,
@@ -75,6 +81,34 @@ class RoomPlayerScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.s5),
                     _buildAlbumArt(room),
+                    const SizedBox(height: AppSpacing.s4),
+                    Center(
+                      child: Text(
+                        song?.title ?? "Nothing is playing right now.",
+                        style: Theme.of(context).textTheme.headlineLarge,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s2),
+                    Center(
+                      child: Text(
+                        song?.artists?.map((e) => e.name).join(", ") ??
+                            (isDj
+                                ? "Queue up some songs to get the music started"
+                                : "Request a song from the DJ to get things going"),
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                    ),
+                    if (song != null) ...[
+                      const SizedBox(height: AppSpacing.s6 * 0.85),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.s4,
+                        ),
+                        child: _buildProgressBar(roomRef, song),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -148,6 +182,55 @@ class RoomPlayerScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+Widget _buildProgressBar(RoomProvider roomRef, Song currentSong) {
+  String formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  final durationMs = currentSong.duration * 1000;
+  return StreamBuilder<Duration>(
+    stream: PlayerAudioService.roomHandler.positionStream,
+    builder: (context, snapshot) {
+      final position = snapshot.data ?? Duration.zero;
+      final elapsedMs = position.inMilliseconds.clamp(0, durationMs);
+      final progress = durationMs == 0 ? 0.0 : elapsedMs / durationMs;
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: AppColors.card,
+              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+              minHeight: 5,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s2),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                formatDuration(
+                  Duration(milliseconds: elapsedMs),
+                ),
+                style: const TextStyle(color: AppColors.text2, fontSize: 12),
+              ),
+              Text(
+                formatDuration(Duration(seconds: currentSong.duration)),
+                style: const TextStyle(color: AppColors.text2, fontSize: 12),
+              ),
+            ],
+          ),
+        ],
+      );
+    },
+  );
 }
 
 Widget _buildBottomBar(BuildContext context, bool isDj) {
@@ -327,8 +410,6 @@ Widget _buildDjChip(BuildContext context, Room room, bool isDj, String roomId) {
     ],
   );
 }
-
-// ── No DJ ──
 
 Widget _buildNoDj(BuildContext context) {
   return Row(

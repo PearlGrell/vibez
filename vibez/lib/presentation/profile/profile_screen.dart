@@ -10,7 +10,7 @@ import 'package:vibez/data/models/user.dart';
 
 class ProfileScreen extends ConsumerWidget {
   final VoidCallback onBack;
-  const ProfileScreen({super.key,required this.onBack});
+  const ProfileScreen({super.key, required this.onBack});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,7 +38,7 @@ class ProfileScreen extends ConsumerWidget {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if(didPop) return;
+        if (didPop) return;
         onBack();
       },
       child: Scaffold(
@@ -285,7 +285,6 @@ class ProfileScreen extends ConsumerWidget {
 
                       const SizedBox(height: AppSpacing.s6),
 
-                      // Library Section
                       LibrarySection(profile: profile),
                       const SizedBox(height: 140),
                     ],

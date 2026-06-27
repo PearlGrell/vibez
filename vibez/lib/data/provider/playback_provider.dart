@@ -7,15 +7,11 @@ import 'package:vibez/data/models/playback_info.dart';
 import 'package:vibez/data/models/currently_playing.dart';
 import 'package:vibez/data/models/recent_item.dart';
 import 'package:vibez/data/provider/song_cache_provider.dart';
-import 'package:vibez/data/services/audio_service.dart';
-
-// ── Enums ──────────────────────────────────────────────────────────────────
+import 'package:vibez/data/services/player_audio_service.dart';
 
 enum RepeatMode { none, all, one }
 
 enum LoadState { idle, loading, success, error }
-
-// ── State ──────────────────────────────────────────────────────────────────
 
 class PlaybackState {
   final Song? currentSong;
@@ -25,7 +21,6 @@ class PlaybackState {
   final RepeatMode repeatMode;
   final bool shuffle;
 
-  // Queue
   final List<Song> queue;
   final List<Song> originalQueue;
   final List<Song> history;
@@ -93,16 +88,12 @@ class PlaybackState {
     );
   }
 
-  // ── Convenience getters ────────────────────────────────────────────────
-
   bool get hasNext => queue.isNotEmpty || autoplayQueue.isNotEmpty;
   bool get hasPrevious => history.isNotEmpty;
   int get queueLength => queue.length;
   Duration get remainingDuration =>
       Duration(seconds: queue.fold(0, (sum, song) => sum + song.duration));
 }
-
-// ── Provider ───────────────────────────────────────────────────────────────
 
 final playbackProvider = NotifierProvider<PlaybackProvider, PlaybackState>(
   PlaybackProvider.new,
@@ -117,14 +108,12 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     return const PlaybackState();
   }
 
-  // ── Public API: Play Controls ──────────────────────────────────────────
-
   void play() {
-    AudioService.handler.play();
+    PlayerAudioService.handler.play();
   }
 
   void pause() {
-    AudioService.handler.pause();
+    PlayerAudioService.handler.pause();
   }
 
   void togglePlay() {
@@ -255,8 +244,8 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     }
 
     state = state.copyWith(playing: false);
-    await AudioService.handler.pause();
-    await AudioService.handler.seek(Duration.zero);
+    await PlayerAudioService.handler.pause();
+    await PlayerAudioService.handler.seek(Duration.zero);
   }
 
   Future<void> playPrevious() async {
@@ -309,8 +298,6 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     );
     await _loadAndPlay(nextSong);
   }
-
-  // ── Public API: Queue Manipulation ─────────────────────────────────────
 
   void addToQueue(Song song) {
     if (state.queue.any((s) => s.id == song.id)) return;
@@ -387,8 +374,6 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     );
   }
 
-  // ── Public API: Autoplay Queue ─────────────────────────────────────────
-
   void setAutoplayQueue(List<Song> songs) {
     final seenIds = <String>{};
     if (state.currentSong != null) seenIds.add(state.currentSong!.id);
@@ -423,8 +408,6 @@ class PlaybackProvider extends Notifier<PlaybackState> {
       );
     }
   }
-
-  // ── Public API: Mode Toggles ───────────────────────────────────────────
 
   void toggleShuffle() {
     final newShuffle = !state.shuffle;
@@ -485,7 +468,7 @@ class PlaybackProvider extends Notifier<PlaybackState> {
   }
 
   void stopAndClear() {
-    AudioService.handler.stop();
+    PlayerAudioService.handler.stop();
   }
 
   void clearStateForStop() {
@@ -503,11 +486,9 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     }
   }
 
-  // ── Private: Playback Loading ──────────────────────────────────────────
-
   Future<void> _loadAndPlay(Song song) async {
     final cache = ref.read(songCacheProvider.notifier);
-    final handler = AudioService.handler as VibezAudioHandler;
+    final handler = PlayerAudioService.vibezHandler;
 
     handler.updateMetadata(song);
     _saveCurrentSong(song);
@@ -560,7 +541,8 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     final encoded = jsonEncode(updated.map((s) => s.toJson()).toList());
     prefs.setString('recentlyPlayed', encoded);
 
-    final skipSongItem = _playingFromCollection ||
+    final skipSongItem =
+        _playingFromCollection ||
         (state.currentlyPlaying != null &&
             state.currentlyPlaying!.type != PlayingSourceType.song);
     if (!skipSongItem) {
@@ -596,7 +578,6 @@ class PlaybackProvider extends Notifier<PlaybackState> {
   Future<void> loadLastPlayedSong() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Load recently played songs
     final rpJson = prefs.getString('recentlyPlayed');
     if (rpJson != null) {
       try {
@@ -607,7 +588,6 @@ class PlaybackProvider extends Notifier<PlaybackState> {
       } catch (_) {}
     }
 
-    // Load recent items (songs + albums + playlists + artists)
     final riJson = prefs.getString('recentItems');
     if (riJson != null) {
       try {

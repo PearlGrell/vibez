@@ -7,20 +7,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
 import 'package:vibez/data/provider/song_cache_provider.dart' hide LoadState;
+import 'package:vibez/data/services/room_audio_service.dart';
 
-class VibezAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
+class PlayerAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
   final ProviderContainer _container;
   final AudioPlayer _player = AudioPlayer();
 
   bool _retrying = false;
 
-  VibezAudioHandler(this._container) {
-    _player.playbackEventStream.map(_transformEvent).listen(
-      playbackState.add,
-      onError: (Object e, StackTrace stackTrace) {
-        _handlePlayerError();
-      },
-    );
+  PlayerAudioHandler(this._container) {
+    _player.playbackEventStream
+        .map(_transformEvent)
+        .listen(
+          playbackState.add,
+          onError: (Object e, StackTrace stackTrace) {
+            _handlePlayerError();
+          },
+        );
 
     _player.processingStateStream.listen(
       (state) {
@@ -36,21 +39,17 @@ class VibezAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
       },
     );
 
-    _player.playingStream.listen(
-      (playing) {
-        _container.read(playbackProvider.notifier).setPlayingState(playing);
-      },
-      onError: (Object e, StackTrace stackTrace) {},
-    );
+    _player.playingStream.listen((playing) {
+      _container.read(playbackProvider.notifier).setPlayingState(playing);
+    }, onError: (Object e, StackTrace stackTrace) {});
 
-    _player.durationStream.listen(
-      (duration) {
-        if (duration != null) {
-          _container.read(playbackProvider.notifier).updateCurrentSongDuration(duration);
-        }
-      },
-      onError: (Object e, StackTrace stackTrace) {},
-    );
+    _player.durationStream.listen((duration) {
+      if (duration != null) {
+        _container
+            .read(playbackProvider.notifier)
+            .updateCurrentSongDuration(duration);
+      }
+    }, onError: (Object e, StackTrace stackTrace) {});
 
     _player.playerStateStream.listen(
       (playerState) {
@@ -73,9 +72,7 @@ class VibezAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
     if (song == null || playback.playbackLoadState == LoadState.loading) return;
 
     _retrying = true;
-    _container
-        .read(songCacheProvider.notifier)
-        .evictPlaybackInfo(song.id);
+    _container.read(songCacheProvider.notifier).evictPlaybackInfo(song.id);
     _container
         .read(playbackProvider.notifier)
         .retryCurrentSong()
@@ -204,7 +201,7 @@ class VibezAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
 
   Future<void> playUrl(Song song, String url) async {
     updateMetadata(song);
-    _retrying = false; 
+    _retrying = false;
 
     try {
       await _player.setAudioSource(AudioSource.uri(Uri.parse(url)));
@@ -221,11 +218,13 @@ class VibezAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
         _player.play();
       }
     } catch (e) {
+      final currentSong = _container.read(playbackProvider).currentSong;
+      if (currentSong?.id != song.id) {
+        return;
+      }
       if (!_retrying) {
         _retrying = true;
-        _container
-            .read(songCacheProvider.notifier)
-            .evictPlaybackInfo(song.id);
+        _container.read(songCacheProvider.notifier).evictPlaybackInfo(song.id);
         await _container
             .read(playbackProvider.notifier)
             .retryCurrentSong()
@@ -243,23 +242,105 @@ class VibezAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
   Stream<Duration> get bufferedPositionStream => _player.bufferedPositionStream;
 }
 
-class AudioService {
-  static late final audio.AudioHandler _handler;
+class SwitchingAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
+  final PlayerAudioHandler playerHandler;
+  final RoomAudioHandler roomHandler;
+  bool _useRoom = false;
 
-  static audio.AudioHandler get handler => _handler;
-  static VibezAudioHandler get vibezHandler => _handler as VibezAudioHandler;
+  SwitchingAudioHandler(this.playerHandler, this.roomHandler) {
+    playerHandler.playbackState.listen((state) {
+      if (!_useRoom) playbackState.add(state);
+    });
+    roomHandler.playbackState.listen((state) {
+      if (_useRoom) playbackState.add(state);
+    });
+    playerHandler.mediaItem.listen((item) {
+      if (!_useRoom) mediaItem.add(item);
+    });
+    roomHandler.mediaItem.listen((item) {
+      if (_useRoom) mediaItem.add(item);
+    });
+  }
+
+  bool get useRoom => _useRoom;
+
+  void switchToRoom() {
+    if (!_useRoom) {
+      _useRoom = true;
+      playerHandler.stop();
+      playbackState.add(roomHandler.playbackState.value);
+      mediaItem.add(roomHandler.mediaItem.value);
+    }
+  }
+
+  void switchToPlayer() {
+    if (_useRoom) {
+      _useRoom = false;
+      roomHandler.stopLocal();
+      playbackState.add(playerHandler.playbackState.value);
+      mediaItem.add(playerHandler.mediaItem.value);
+    }
+  }
+
+  audio.AudioHandler get _activeHandler => _useRoom ? roomHandler : playerHandler;
+
+  @override
+  Future<void> play() => _activeHandler.play();
+
+  @override
+  Future<void> pause() => _activeHandler.pause();
+
+  @override
+  Future<void> seek(Duration position) => _activeHandler.seek(position);
+
+  @override
+  Future<void> stop() => _activeHandler.stop();
+
+  @override
+  Future<void> skipToNext() => _activeHandler.skipToNext();
+
+  @override
+  Future<void> skipToPrevious() => _activeHandler.skipToPrevious();
+
+  @override
+  Future<void> fastForward() => _activeHandler.fastForward();
+
+  @override
+  Future<void> setShuffleMode(audio.AudioServiceShuffleMode shuffleMode) =>
+      _activeHandler.setShuffleMode(shuffleMode);
+
+  @override
+  Future<void> setRepeatMode(audio.AudioServiceRepeatMode repeatMode) =>
+      _activeHandler.setRepeatMode(repeatMode);
+}
+
+class PlayerAudioService {
+  static late final SwitchingAudioHandler _switchingHandler;
+
+  static audio.AudioHandler get handler => _switchingHandler;
+  static PlayerAudioHandler get vibezHandler => _switchingHandler.playerHandler;
+  static RoomAudioHandler get roomHandler => _switchingHandler.roomHandler;
+
+  static void switchToRoom() => _switchingHandler.switchToRoom();
+  static void switchToPlayer() => _switchingHandler.switchToPlayer();
 
   static Future<void> init(ProviderContainer container) async {
     try {
       final tempDir = await getTemporaryDirectory();
-      final justAudioCacheDir = Directory('${tempDir.path}/just_audio_cache/remote');
+      final justAudioCacheDir = Directory(
+        '${tempDir.path}/just_audio_cache/remote',
+      );
       if (!await justAudioCacheDir.exists()) {
         await justAudioCacheDir.create(recursive: true);
       }
     } catch (_) {}
 
-    _handler = await audio.AudioService.init(
-      builder: () => VibezAudioHandler(container),
+    final playerHandler = PlayerAudioHandler(container);
+    final roomHandler = RoomAudioHandler(container);
+    final switching = SwitchingAudioHandler(playerHandler, roomHandler);
+
+    _switchingHandler = await audio.AudioService.init(
+      builder: () => switching,
       config: const audio.AudioServiceConfig(
         androidNotificationChannelId: 'com.aryan.vibez.channel.audio',
         androidNotificationChannelName: 'Vibez Music Playback',

@@ -53,8 +53,6 @@ class RoomDetailsScreen extends ConsumerWidget {
     }();
   }
 
-  // ── Body ──
-
   Widget _buildBody(
     BuildContext context,
     WidgetRef ref, {
@@ -151,8 +149,6 @@ class RoomDetailsScreen extends ConsumerWidget {
     );
   }
 
-  // ── Album Art ──
-
   Widget _buildAlbumArt(Room room) {
     return Center(
       child: Stack(
@@ -225,8 +221,6 @@ class RoomDetailsScreen extends ConsumerWidget {
     );
   }
 
-  // ── Tags ──
-
   Widget _buildTags(BuildContext context, Room room) {
     if (room.tags.isEmpty) return const SizedBox.shrink();
     return Wrap(
@@ -252,8 +246,6 @@ class RoomDetailsScreen extends ConsumerWidget {
       }).toList(),
     );
   }
-
-  // ── DJ Chip ──
 
   Widget _buildDjChip(BuildContext context, Room room) {
     final dj = room.currentDj!;
@@ -324,8 +316,6 @@ class RoomDetailsScreen extends ConsumerWidget {
     );
   }
 
-  // ── No DJ ──
-
   Widget _buildNoDj(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -341,8 +331,6 @@ class RoomDetailsScreen extends ConsumerWidget {
       ],
     );
   }
-
-  // ── Listeners ──
 
   Widget _buildListeners(
     BuildContext context,
@@ -419,8 +407,6 @@ class RoomDetailsScreen extends ConsumerWidget {
     );
   }
 
-  // ── Empty State ──
-
   Widget _buildEmptyState(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
@@ -468,8 +454,6 @@ class RoomDetailsScreen extends ConsumerWidget {
       ),
     );
   }
-
-  // ── Now Playing ──
 
   Widget _buildNowPlaying(BuildContext context, Room room) {
     final song = room.currentSong!;
@@ -555,8 +539,6 @@ class RoomDetailsScreen extends ConsumerWidget {
       ),
     );
   }
-
-  // ── Up Next ──
 
   Widget _buildUpNext(BuildContext context, List<QueueItem> queue) {
     return Padding(
@@ -644,8 +626,6 @@ class RoomDetailsScreen extends ConsumerWidget {
     );
   }
 
-  // ── About Section ──
-
   Widget _buildAboutSection(BuildContext context, Room room) {
     final aboutText = room.description.isNotEmpty
         ? room.description
@@ -681,8 +661,6 @@ class RoomDetailsScreen extends ConsumerWidget {
     }
     return "A $tagStr room. No one's hosting at the moment — be the first to get it going.";
   }
-
-  // ── Bottom Bar ──
 
   Widget _buildBottomBar(
     BuildContext context,
@@ -798,8 +776,6 @@ class RoomDetailsScreen extends ConsumerWidget {
     );
   }
 
-  // ── Error ──
-
   Widget _buildError(BuildContext context, WidgetRef ref, Object error) {
     return Scaffold(
       appBar: AppBar(
@@ -845,8 +821,6 @@ class RoomDetailsScreen extends ConsumerWidget {
       ),
     );
   }
-
-  // ── Ghost Loading ──
 
   Widget _buildGhostLoading(BuildContext context) {
     return Scaffold(

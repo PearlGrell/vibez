@@ -14,7 +14,10 @@ import 'package:vibez/presentation/common/details_skeleton.dart';
 import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
 import 'package:vibez/presentation/profile/profile_screen.dart';
 
-final userRoomsProvider = FutureProvider.family<List<Room>, String>((ref, userId) async {
+final userRoomsProvider = FutureProvider.family<List<Room>, String>((
+  ref,
+  userId,
+) async {
   return await RoomRepository.instance.getUserRooms(userId);
 });
 
@@ -109,17 +112,18 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
 
     final profileColor =
         profileUrl != null && profileUrl.startsWith('default://')
-            ? Color(
-                int.parse(
-                  'FF${profileUrl.replaceFirst('default://', '')}',
-                  radix: 16,
-                ),
-              )
-            : const Color(0xFF8B5CF6);
+        ? Color(
+            int.parse(
+              'FF${profileUrl.replaceFirst('default://', '')}',
+              radix: 16,
+            ),
+          )
+        : const Color(0xFF8B5CF6);
 
     final textColor = Color.lerp(profileColor, Colors.black, 0.7)!;
 
-    final hasImage = profileUrl != null &&
+    final hasImage =
+        profileUrl != null &&
         profileUrl.isNotEmpty &&
         !profileUrl.startsWith('default://');
 
@@ -184,11 +188,19 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                 width: 100,
                                 height: 100,
                                 errorBuilder: (_, _, _) => _buildAvatar(
-                                    context, profile, profileColor, textColor),
+                                  context,
+                                  profile,
+                                  profileColor,
+                                  textColor,
+                                ),
                               ),
                             )
                           : _buildAvatar(
-                              context, profile, profileColor, textColor),
+                              context,
+                              profile,
+                              profileColor,
+                              textColor,
+                            ),
                     ),
                   ),
                 ],
@@ -214,8 +226,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           children: [
                             Text(
                               profile.name,
-                              style:
-                                  Theme.of(context).textTheme.displaySmall,
+                              style: Theme.of(context).textTheme.displaySmall,
                             ),
                             Text('@${profile.username ?? 'user'}'),
                           ],
@@ -253,9 +264,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                 )
                               : Text(
                                   _isFollowing ? 'Following' : 'Follow',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
+                                  style: Theme.of(context).textTheme.bodyMedium
                                       ?.copyWith(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w600,
@@ -267,10 +276,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                   ),
                   if (profile.bio != null && profile.bio!.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.s3),
-                    SizedBox(
-                      width: double.infinity,
-                      child: Text(profile.bio!),
-                    ),
+                    SizedBox(width: double.infinity, child: Text(profile.bio!)),
                   ],
                   const SizedBox(height: AppSpacing.s4),
                   Container(
@@ -289,9 +295,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     const SizedBox(height: AppSpacing.s6),
                     Text(
                       'Favourite genres',
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
+                      style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(
                             fontWeight: FontWeight.w800,
                             color: AppColors.text2,
@@ -314,9 +318,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           ),
                           child: Text(
                             e,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: AppColors.text2,
@@ -331,9 +333,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     const SizedBox(height: AppSpacing.s6),
                     Text(
                       'Playlists',
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
+                      style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(
                             fontWeight: FontWeight.w800,
                             color: AppColors.text,
@@ -361,10 +361,13 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                     seed: playlist.name,
                                     size: 110,
                                     radius: AppRadius.sm,
-                                    child: playlist.thumbnail != null &&
+                                    child:
+                                        playlist.thumbnail != null &&
                                             playlist.thumbnail!.isNotEmpty
-                                        ? Image.network(playlist.thumbnail!,
-                                            fit: BoxFit.cover)
+                                        ? Image.network(
+                                            playlist.thumbnail!,
+                                            fit: BoxFit.cover,
+                                          )
                                         : null,
                                   ),
                                   const SizedBox(height: 6),
@@ -418,10 +421,13 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                     seed: album.title,
                                     size: 110,
                                     radius: AppRadius.sm,
-                                    child: album.thumbnail != null &&
+                                    child:
+                                        album.thumbnail != null &&
                                             album.thumbnail!.isNotEmpty
-                                        ? Image.network(album.thumbnail!,
-                                            fit: BoxFit.cover)
+                                        ? Image.network(
+                                            album.thumbnail!,
+                                            fit: BoxFit.cover,
+                                          )
                                         : null,
                                   ),
                                   const SizedBox(height: 6),
@@ -464,8 +470,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                         itemBuilder: (context, index) {
                           final artist = profile.followedArtists![index];
                           return GestureDetector(
-                            onTap: () =>
-                                context.push('/artist/${artist.id}'),
+                            onTap: () => context.push('/artist/${artist.id}'),
                             child: Container(
                               width: 110,
                               margin: const EdgeInsets.only(right: 16),
@@ -476,16 +481,20 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                     height: 110,
                                     width: 110,
                                     decoration: const BoxDecoration(
-                                        shape: BoxShape.circle),
+                                      shape: BoxShape.circle,
+                                    ),
                                     clipBehavior: Clip.antiAlias,
                                     child: AlbumArtCover(
                                       seed: artist.name,
                                       size: 110,
                                       radius: 55,
-                                      child: artist.thumbnail != null &&
+                                      child:
+                                          artist.thumbnail != null &&
                                               artist.thumbnail!.isNotEmpty
-                                          ? Image.network(artist.thumbnail!,
-                                              fit: BoxFit.cover)
+                                          ? Image.network(
+                                              artist.thumbnail!,
+                                              fit: BoxFit.cover,
+                                            )
                                           : null,
                                     ),
                                   ),
@@ -509,82 +518,93 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     ),
                   ],
 
-                // My Rooms
-                ...ref.watch(userRoomsProvider(profile.id)).when(
-                  data: (userRooms) {
-                    if (userRooms.isEmpty) return [];
-                    return [
-                      const SizedBox(height: AppSpacing.s4),
-                      const Text(
-                        "My Rooms",
-                        style: TextStyle(
-                            color: AppColors.text2,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16),
-                      ),
-                      const SizedBox(height: AppSpacing.s4),
-                      SizedBox(
-                        height: 150,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: userRooms.length,
-                          itemBuilder: (context, index) {
-                            final room = userRooms[index];
-                            return GestureDetector(
-                              onTap: () {
-                                context.push('/room/${room.id}');
-                              },
-                              child: Container(
-                                width: 110,
-                                margin: const EdgeInsets.only(right: 16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Stack(
-                                      children: [
-                                        AlbumArtCover(
-                                          seed: room.name,
-                                          size: 110,
-                                          radius: AppRadius.sm,
-                                        ),
-                                        Positioned(
-                                          top: 8,
-                                          right: 8,
-                                          child: Icon(
-                                            Icons.podcasts_rounded,
-                                            color: AppColors.generateTextColor(room.name),
-                                            size: 18,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      room.name,
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
+                  ...ref
+                      .watch(userRoomsProvider(profile.id))
+                      .when(
+                        data: (userRooms) {
+                          if (userRooms.isEmpty) return [];
+                          return [
+                            const SizedBox(height: AppSpacing.s4),
+                            const Text(
+                              "My Rooms",
+                              style: TextStyle(
+                                color: AppColors.text2,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                            const SizedBox(height: AppSpacing.s4),
+                            SizedBox(
+                              height: 150,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: userRooms.length,
+                                itemBuilder: (context, index) {
+                                  final room = userRooms[index];
+                                  return GestureDetector(
+                                    onTap: () {
+                                      context.push('/room/${room.id}');
+                                    },
+                                    child: Container(
+                                      width: 110,
+                                      margin: const EdgeInsets.only(right: 16),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          Stack(
+                                            children: [
+                                              AlbumArtCover(
+                                                seed: room.name,
+                                                size: 110,
+                                                radius: AppRadius.sm,
+                                              ),
+                                              Positioned(
+                                                top: 8,
+                                                right: 8,
+                                                child: Icon(
+                                                  Icons.podcasts_rounded,
+                                                  color:
+                                                      AppColors.generateTextColor(
+                                                        room.name,
+                                                      ),
+                                                  size: 18,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            room.name,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ];
+                        },
+                        loading: () => [
+                          const SizedBox(height: AppSpacing.s4),
+                          const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                        error: (_, _) => [],
                       ),
-                    ];
-                  },
-                  loading: () => [
-                    const SizedBox(height: AppSpacing.s4),
-                    const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-                  ],
-                  error: (_, _) => [],
-                ),
-                const SizedBox(height: 140),
+                  const SizedBox(height: 140),
                 ],
               ),
             ),
@@ -601,18 +621,15 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     Color textColor,
   ) {
     return Container(
-      decoration: BoxDecoration(
-        color: profileColor,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: profileColor, shape: BoxShape.circle),
       alignment: Alignment.center,
       child: Text(
         profile.name.isNotEmpty ? profile.name[0].toUpperCase() : '?',
         style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              color: textColor,
-              fontSize: 36,
-              fontWeight: FontWeight.w900,
-            ),
+          color: textColor,
+          fontSize: 36,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }

@@ -207,8 +207,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       if (pickedImage != null) {
         setState(() {
           _imageFile = File(pickedImage.path);
-          _existingProfileUrl =
-              null; // Clear existing remote/local url since we have new file
+          _existingProfileUrl = null;
         });
       }
     } catch (e) {
@@ -652,9 +651,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   children: [
                     Text(
                       "3-16 characters · letters, numbers, underscores",
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.text3,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.text3),
                     ),
                     if (_isCheckingUsername)
                       const SizedBox(
@@ -662,13 +661,23 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 1.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.primary,
+                          ),
                         ),
                       )
                     else if (_isUsernameAvailable == true)
-                      const Icon(Icons.check_circle_rounded, color: Colors.green, size: 16)
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: Colors.green,
+                        size: 16,
+                      )
                     else if (_isUsernameAvailable == false)
-                      const Icon(Icons.cancel_rounded, color: Colors.red, size: 16),
+                      const Icon(
+                        Icons.cancel_rounded,
+                        color: Colors.red,
+                        size: 16,
+                      ),
                   ],
                 ),
 
@@ -815,7 +824,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton.icon(
-                    onPressed: (_isLoading || _isCheckingUsername) ? null : _submit,
+                    onPressed: (_isLoading || _isCheckingUsername)
+                        ? null
+                        : _submit,
                     icon: _isLoading
                         ? const SizedBox.shrink()
                         : const Icon(Icons.done, color: Colors.white, size: 20),

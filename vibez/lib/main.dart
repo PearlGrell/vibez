@@ -6,7 +6,7 @@ import 'package:vibez/core/network/socket_client.dart';
 import 'package:vibez/core/router/app_router.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
 import 'package:vibez/core/theme/theme.dart';
-import 'package:vibez/data/services/audio_service.dart';
+import 'package:vibez/data/services/player_audio_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,15 +15,10 @@ Future<void> main() async {
 
   final container = ProviderContainer();
 
-  await AudioService.init(container);
+  await PlayerAudioService.init(container);
   SocketClient.instance.initialize().ignore();
 
-  runApp(
-    UncontrolledProviderScope(
-      container: container,
-      child: const Vibez(),
-    ),
-  );
+  runApp(UncontrolledProviderScope(container: container, child: const Vibez()));
 }
 
 class Vibez extends StatelessWidget {
@@ -39,5 +34,3 @@ class Vibez extends StatelessWidget {
     );
   }
 }
-
-

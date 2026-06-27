@@ -43,8 +43,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       return !isCurrent && !isInQueue;
     }).toList();
 
-    final hasSource = source != null &&
-        source.type != PlayingSourceType.song;
+    final hasSource = source != null && source.type != PlayingSourceType.song;
 
     return Container(
       color: AppColors.background,
@@ -57,18 +56,13 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
           return Container(
             decoration: const BoxDecoration(
               color: AppColors.background,
-              borderRadius: BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Column(
               children: [
                 _buildHandle(),
                 _buildHeader(context, source, playback),
-                const Divider(
-                  color: AppColors.hairlineLight,
-                  height: 1,
-                ),
+                const Divider(color: AppColors.hairlineLight, height: 1),
                 Expanded(
                   child: currentSong == null
                       ? _buildEmpty(context)
@@ -144,9 +138,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                       Flexible(
                         child: Text(
                           "Playing from ${source.sourceName}",
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppColors.text3),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -155,10 +147,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                     ] else
                       Text(
                         "Solo listening",
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppColors.text3),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: AppColors.text3),
                       ),
                   ],
                 ),
@@ -169,8 +160,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             tooltip: 'Shuffle',
             icon: Icon(
               Icons.shuffle_rounded,
-              color:
-                  playback.shuffle ? AppColors.primary : AppColors.text2,
+              color: playback.shuffle ? AppColors.primary : AppColors.text2,
               size: 22,
             ),
             onPressed: () {
@@ -181,8 +171,8 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             tooltip: playback.repeatMode == RepeatMode.one
                 ? 'Repeat One'
                 : playback.repeatMode == RepeatMode.all
-                    ? 'Repeat All'
-                    : 'Repeat Off',
+                ? 'Repeat All'
+                : 'Repeat Off',
             icon: Icon(
               playback.repeatMode == RepeatMode.one
                   ? Icons.repeat_one_rounded
@@ -214,17 +204,15 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
           ),
           Text(
             "Your queue is empty",
-            style: Theme.of(context)
-                .textTheme
-                .bodyLarge
-                ?.copyWith(color: AppColors.text3),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: AppColors.text3),
           ),
           Text(
             "Play something to get started",
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: AppColors.text3),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.text3),
           ),
         ],
       ),
@@ -242,15 +230,15 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
   ) {
     final paginatedQueue = queue.take(_visibleQueueCount).toList();
     final hasMoreQueue = queue.length > _visibleQueueCount;
-    final paginatedRelated =
-        filteredRelated.take(_visibleRelatedCount).toList();
+    final paginatedRelated = filteredRelated
+        .take(_visibleRelatedCount)
+        .toList();
     final hasMoreRelated = filteredRelated.length > _visibleRelatedCount;
 
     return ListView(
       controller: scrollController,
       padding: EdgeInsets.zero,
       children: [
-        // Now Playing
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.s5,
@@ -275,7 +263,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
           },
         ),
 
-        // Playing Next
         if (paginatedQueue.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -332,14 +319,10 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               index: index,
               formatDuration: _formatDuration,
               onTap: () {
-                ref
-                    .read(playbackProvider.notifier)
-                    .playSongFromQueue(song);
+                ref.read(playbackProvider.notifier).playSongFromQueue(song);
               },
               onRemove: () {
-                ref
-                    .read(playbackProvider.notifier)
-                    .removeFromQueueAt(index);
+                ref.read(playbackProvider.notifier).removeFromQueueAt(index);
               },
             );
           }),
@@ -354,7 +337,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             ),
         ],
 
-        // Related / Recommended
         if (paginatedRelated.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(
