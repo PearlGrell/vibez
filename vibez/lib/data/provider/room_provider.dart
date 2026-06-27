@@ -7,7 +7,9 @@ import 'package:vibez/core/network/socket_client.dart';
 import 'package:vibez/data/models/queue_item.dart';
 import 'package:vibez/data/models/room.dart';
 import 'package:vibez/data/models/room_state.dart';
+import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
+import 'package:vibez/data/provider/song_cache_provider.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 
 enum RoomStatus { loading, ready, error }
@@ -18,6 +20,8 @@ final roomProvider = ChangeNotifierProvider.autoDispose
     });
 
 final activeRoomIdProvider = StateProvider<String?>((ref) => null);
+
+enum RecommendationState { initial, loading, success, error }
 
 class RoomProvider extends ChangeNotifier {
   final Ref _ref;
@@ -35,11 +39,42 @@ class RoomProvider extends ChangeNotifier {
   int participants = 0;
   List<String> participantsInitials = [];
   List<QueueItem> queue = [];
+  List<Song> recommendations = [];
   bool isInRoom = false;
   Object? error;
 
+  RecommendationState recommendationState = .initial;
+  Song? _lastSong;
+
   RoomProvider(this._ref, this.roomId) {
     _init();
+  }
+
+  Future<void> _maybeFetchRecommendations() async {
+    final currentSong = room?.currentSong;
+    debugPrint(
+      '[REC] _maybeFetch: currentSong=${currentSong?.id} '
+      'lastSong=${_lastSong?.id} state=$recommendationState',
+    );
+    if (currentSong == null || currentSong.id == _lastSong?.id) return;
+
+    recommendationState = RecommendationState.loading;
+    recommendations.clear();
+    notifyListeners();
+
+    try {
+      final res = await _ref
+          .read(songCacheProvider.notifier)
+          .fetchRelated(currentSong.id);
+      debugPrint('[REC] fetchRelated returned ${res?.length} songs');
+      recommendations = res ?? [];
+      recommendationState = RecommendationState.success;
+      _lastSong = currentSong;
+    } catch (e) {
+      debugPrint('[REC] fetchRelated threw: $e');
+      recommendationState = RecommendationState.error;
+    }
+    notifyListeners();
   }
 
   Future<void> _init() async {
@@ -61,6 +96,7 @@ class RoomProvider extends ChangeNotifier {
       notifyListeners();
 
       _fetchQueue();
+      _maybeFetchRecommendations();
 
       _sub = _socket.stream('room:state_update').listen((data) {
         final update = RoomState.fromJson(
@@ -71,9 +107,10 @@ class RoomProvider extends ChangeNotifier {
         participants = update.participants;
         participantsInitials = update.participantsInitials;
         notifyListeners();
+        _maybeFetchRecommendations();
       });
 
-      _queueSub = _socket.stream('room:queue_update').listen((data) {
+      _queueSub = _socket.stream('room:queue_update').listen((data) async {
         final map = Map<String, dynamic>.from(data as Map);
         if (map['roomId'] != roomId) return;
         queue =
@@ -104,6 +141,7 @@ class RoomProvider extends ChangeNotifier {
           );
         }
         notifyListeners();
+        _maybeFetchRecommendations();
       });
     } catch (e) {
       error = e;
@@ -159,7 +197,13 @@ class RoomProvider extends ChangeNotifier {
     });
   }
 
+  Future<void> removeRecommendation(String songId) async {
+    recommendations.removeWhere((song) => song.id == songId);
+    notifyListeners();
+  }
+
   Future<void> playNext() async {
+    if (queue.isEmpty) return;
     final queueItem = queue.first;
     await Future.wait([
       songChanged(queueItem.song.id),
@@ -248,6 +292,7 @@ class RoomProvider extends ChangeNotifier {
       status = RoomStatus.ready;
       error = null;
       notifyListeners();
+      _maybeFetchRecommendations();
     } catch (e) {
       error = e;
       status = RoomStatus.error;

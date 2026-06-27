@@ -98,6 +98,7 @@ class RoomPlayerScreen extends ConsumerWidget {
                                 ? "Queue up some songs to get the music started"
                                 : "Request a song from the DJ to get things going"),
                         style: Theme.of(context).textTheme.bodyLarge,
+                        textAlign: .center,
                       ),
                     ),
                     if (song != null) ...[

@@ -10,6 +10,7 @@ import 'package:vibez/core/utils/app_snackbar.dart';
 import 'package:vibez/data/models/queue_item.dart';
 import 'package:vibez/data/models/request_item.dart';
 import 'package:vibez/data/models/search_result.dart';
+import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/provider/room_provider.dart';
 import 'package:vibez/data/provider/room_playback_provider.dart';
 import 'package:vibez/data/provider/user_provider.dart';
@@ -188,6 +189,33 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
               },
             ),
           ),
+          const SizedBox(height: AppSpacing.s3),
+          _buildRecommendationHeader(context, roomRef),
+          const SizedBox(height: AppSpacing.s3),
+
+          if (roomRef.recommendationState == RecommendationState.loading ||
+              roomRef.recommendationState == RecommendationState.initial)
+            Center(child: Text(roomRef.recommendationState.toString())),
+
+          if (roomRef.recommendationState == RecommendationState.success)
+            for (final (index, song) in roomRef.recommendations.indexed)
+              _buildRecommendationItem(
+                context,
+                index,
+                song,
+                () async {
+                  await Future.wait([
+                    roomRef.songChanged(song.id),
+                    roomRef.removeRecommendation(song.id),
+                  ]);
+                },
+                () async {
+                  await Future.wait([
+                    roomRef.addSong(song.id),
+                    roomRef.removeRecommendation(song.id),
+                  ]);
+                },
+              ),
           const SizedBox(height: AppSpacing.s8),
         ],
       ),
@@ -280,7 +308,8 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
             stream: PlayerAudioService.roomHandler.positionStream,
             builder: (context, snapshot) {
               final position = snapshot.data ?? Duration.zero;
-              final durationMs = (roomRef.room?.currentSong?.duration ?? 0) * 1000;
+              final durationMs =
+                  (roomRef.room?.currentSong?.duration ?? 0) * 1000;
               final elapsedMs = position.inMilliseconds.clamp(0, durationMs);
               final progress = durationMs == 0 ? 0.0 : elapsedMs / durationMs;
 
@@ -424,6 +453,25 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
     );
   }
 
+  Widget _buildRecommendationHeader(
+    BuildContext context,
+    RoomProvider roomRef,
+  ) {
+    return Row(
+      children: [
+        const Icon(Icons.recommend_outlined, color: AppColors.text, size: 22),
+        const SizedBox(width: AppSpacing.s2),
+        Text(
+          'Recommendations',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AppColors.text,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildQueueItem(
     BuildContext context,
     int index,
@@ -521,6 +569,102 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
                 await onRemove();
                 AppSnackbar.show(
                   message: "Removed ${item.song.title} from Queue",
+                  type: AppSnackType.success,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecommendationItem(
+    BuildContext context,
+    int index,
+    Song song,
+    Function() onTap,
+    Function() onAdd,
+  ) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.s2),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s2,
+          vertical: AppSpacing.s3,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surface.withValues(alpha: 0.5),
+          border: Border.all(color: AppColors.hairlineDark),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              child: Text(
+                '${index + 1}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.text2,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s3),
+            AlbumArtCover(
+              seed: song.title,
+              size: 56,
+              radius: AppRadius.sm,
+              child: song.thumbnail != null && song.thumbnail!.isNotEmpty
+                  ? Image.network(
+                      song.thumbnail!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const SizedBox.shrink(),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: AppSpacing.s3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  RichText(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    text: TextSpan(
+                      text:
+                          song.artists?.map((e) => e.name).join(",") ??
+                          "Unknown Artist",
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _buildSmallIconButton(
+              icon: Icons.add_rounded,
+              color: AppColors.text2,
+              onTap: () async {
+                await onAdd();
+                AppSnackbar.show(
+                  message: "Added ${song.title} to Queue",
                   type: AppSnackType.success,
                 );
               },
