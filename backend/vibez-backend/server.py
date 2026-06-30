@@ -58,7 +58,7 @@ def serve():
         server
     )
     
-    listen_addr = "0.0.0.0:50051"
+    listen_addr = "[::]:50051"
     server.add_insecure_port(listen_addr)
     print(f"Starting  server on {listen_addr}")
     server.start()
