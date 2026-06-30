@@ -7,6 +7,7 @@ import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/shadows.dart';
 import 'package:vibez/core/theme/spacing.dart';
+import 'package:vibez/core/utils/app_snackbar.dart';
 import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/models/user.dart';
 import 'package:vibez/data/provider/room_provider.dart';
@@ -186,19 +187,26 @@ class RoomPlayerScreen extends ConsumerWidget {
 }
 
 Widget _buildProgressBar(RoomProvider roomRef, Song currentSong) {
-  String formatDuration(Duration duration) {
-    final minutes = duration.inMinutes;
-    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
-  }
+  final duration = currentSong.duration;
 
-  final durationMs = currentSong.duration * 1000;
   return StreamBuilder<Duration>(
     stream: PlayerAudioService.roomHandler.positionStream,
     builder: (context, snapshot) {
       final position = snapshot.data ?? Duration.zero;
-      final elapsedMs = position.inMilliseconds.clamp(0, durationMs);
-      final progress = durationMs == 0 ? 0.0 : elapsedMs / durationMs;
+      final elapsed = position.inSeconds.clamp(0, duration);
+      final progress = duration == 0 ? 0.0 : elapsed / duration;
+      int remaining = duration - elapsed;
+
+      if (remaining <= 5) {
+        if (roomRef.queue.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            AppSnackbar.show(
+              message:
+                  "Playing ${roomRef.queue.first.song.title} in $remaining seconds",
+            );
+          });
+        }
+      }
 
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -217,13 +225,11 @@ Widget _buildProgressBar(RoomProvider roomRef, Song currentSong) {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                formatDuration(
-                  Duration(milliseconds: elapsedMs),
-                ),
+                _formatDuration(Duration(seconds: elapsed)),
                 style: const TextStyle(color: AppColors.text2, fontSize: 12),
               ),
               Text(
-                formatDuration(Duration(seconds: currentSong.duration)),
+                _formatDuration(Duration(seconds: duration)),
                 style: const TextStyle(color: AppColors.text2, fontSize: 12),
               ),
             ],
@@ -232,6 +238,12 @@ Widget _buildProgressBar(RoomProvider roomRef, Song currentSong) {
       );
     },
   );
+}
+
+String _formatDuration(Duration duration) {
+  final minutes = duration.inMinutes;
+  final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+  return '$minutes:$seconds';
 }
 
 Widget _buildBottomBar(BuildContext context, bool isDj) {

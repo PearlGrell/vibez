@@ -195,7 +195,10 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
 
           if (roomRef.recommendationState == RecommendationState.loading ||
               roomRef.recommendationState == RecommendationState.initial)
-            Center(child: Text(roomRef.recommendationState.toString())),
+            ...List.generate(
+              3,
+              (index) => _buildRecommendationSkeletonItem(index),
+            ),
 
           if (roomRef.recommendationState == RecommendationState.success)
             for (final (index, song) in roomRef.recommendations.indexed)
@@ -204,16 +207,12 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
                 index,
                 song,
                 () async {
-                  await Future.wait([
-                    roomRef.songChanged(song.id),
-                    roomRef.removeRecommendation(song.id),
-                  ]);
+                    await roomRef.songChanged(song.id);
+                    roomRef.removeRecommendation(song.id);
                 },
                 () async {
-                  await Future.wait([
-                    roomRef.addSong(song.id),
-                    roomRef.removeRecommendation(song.id),
-                  ]);
+                    await roomRef.addSong(song.id);
+                    roomRef.removeRecommendation(song.id);
                 },
               ),
           const SizedBox(height: AppSpacing.s8),
@@ -307,11 +306,14 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
           StreamBuilder<Duration>(
             stream: PlayerAudioService.roomHandler.positionStream,
             builder: (context, snapshot) {
+              final currentSong = roomRef.room?.currentSong;
+              final durationSec = currentSong?.duration ?? 0;
+
               final position = snapshot.data ?? Duration.zero;
-              final durationMs =
-                  (roomRef.room?.currentSong?.duration ?? 0) * 1000;
-              final elapsedMs = position.inMilliseconds.clamp(0, durationMs);
-              final progress = durationMs == 0 ? 0.0 : elapsedMs / durationMs;
+              final elapsedSec = position.inSeconds.clamp(0, durationSec);
+              final progress = durationSec == 0
+                  ? 0.0
+                  : elapsedSec / durationSec;
 
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -332,16 +334,14 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        _formatDuration(Duration(milliseconds: elapsedMs)),
+                        _formatDuration(Duration(seconds: elapsedSec)),
                         style: const TextStyle(
                           color: AppColors.text2,
                           fontSize: 12,
                         ),
                       ),
                       Text(
-                        _formatDuration(
-                          Duration(seconds: currentSong.duration),
-                        ),
+                        _formatDuration(Duration(seconds: durationSec)),
                         style: const TextStyle(
                           color: AppColors.text2,
                           fontSize: 12,
@@ -671,6 +671,55 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRecommendationSkeletonItem(int index) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.s2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s2,
+        vertical: AppSpacing.s3,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.5),
+        border: Border.all(color: AppColors.hairlineDark),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            child: Text(
+              '${index + 1}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.text2,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.s3),
+          const Skeleton(height: 56, width: 56, borderRadius: AppRadius.sm),
+          const SizedBox(width: AppSpacing.s3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Skeleton(height: 16, width: 140, borderRadius: 4),
+                SizedBox(height: 8),
+                Skeleton(height: 12, width: 80, borderRadius: 4),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.s3),
+          const Padding(
+            padding: EdgeInsets.all(6),
+            child: Skeleton(height: 22, width: 22, borderRadius: 11),
+          ),
+        ],
       ),
     );
   }
