@@ -1,0 +1,89 @@
+syntax = "proto3";
+package artist;
+
+service Artist {
+    rpc Artist(ArtistRequest) returns (ArtistResponse);
+    rpc ArtistSongs(ArtistBrowseRequest) returns (ArtistSongsResponse);
+    rpc ArtistAlbums(ArtistBrowseRequest) returns (ArtistAlbumsResponse);
+}
+
+message ArtistRequest {
+    string id = 1;
+}
+
+message ArtistBrowseRequest {
+    string channelId = 1;
+    string browseId = 2;
+    string params = 3;
+}
+
+message ArtistSong {
+    string id = 1;
+    string title = 2;
+    repeated ArtistSongArtist artists = 3;
+    string album = 4;
+    string albumId = 5;
+    string thumbnail = 6;
+    int32 duration = 7;
+}
+
+message ArtistSongArtist {
+    string id = 1;
+    string name = 2;
+}
+
+message ArtistAlbum {
+    string id = 1;
+    string title = 2;
+    string thumbnail = 3;
+    string type = 4;
+    string year = 5;
+}
+
+message ArtistSingle {
+    string id = 1;
+    string title = 2;
+    string thumbnail = 3;
+    string type = 4;
+    string year = 5;
+}
+
+message ArtistVideo {
+    string id = 1;
+    string title = 2;
+    string thumbnail = 3;
+    string views = 4;
+}
+
+message RelatedArtist {
+    string id = 1;
+    string name = 2;
+    string thumbnail = 3;
+    string subscribers = 4;
+}
+
+message ArtistResponse {
+    string id = 1;
+    string name = 2;
+    string description = 3;
+    string views = 4;
+    string subscribers = 5;
+    string monthlyListeners = 6;
+    string thumbnail = 7;
+    repeated ArtistSong songs = 8;
+    repeated ArtistAlbum albums = 9;
+    repeated ArtistSingle singles = 10;
+    repeated ArtistVideo videos = 11;
+    repeated RelatedArtist related = 12;
+    string songsBrowseId = 13;
+    string albumsBrowseId = 14;
+    string albumsParams = 15;
+}
+
+message ArtistSongsResponse {
+    repeated ArtistSong songs = 1;
+}
+
+message ArtistAlbumsResponse {
+    repeated ArtistAlbum albums = 1;
+}

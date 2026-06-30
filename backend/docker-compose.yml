@@ -4,10 +4,8 @@ services:
       context: ./vibez-api
     ports:
       - "3000:3000"
-    volumes:
-      - /app/node_modules
-      - ./protos:/protos
-
+    environment:
+      - GRPC_URL=grpc:50051
     develop:
       watch:
         - action: sync
@@ -26,5 +24,3 @@ services:
     container_name: grpc
     ports:
       - "50051:50051"
-    volumes:
-      - ./protos:/protos

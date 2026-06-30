@@ -1,0 +1,49 @@
+syntax = "proto3";
+package search;
+
+service Search {
+    rpc Search(SearchRequest) returns (SearchResult);
+}
+
+enum Filter {
+    ALL = 0;
+    SONG = 1;
+    ARTIST = 2;
+    ALBUM = 3;
+}
+
+message SearchRequest {
+    string query = 1;
+    Filter filter = 2;
+    int32 limit = 3;
+}
+
+message SearchResult {
+    repeated Song songs = 1;
+    repeated Artist artists = 2;
+    repeated Album albums = 3;
+}
+
+message Song {
+    string id = 1;
+    string title = 2;
+    string album = 3;
+    string artists = 4;
+    int32 duration = 5;
+    string thumbnail = 6;
+}
+
+message Artist {
+    string id = 1;
+    string name = 2;
+    string thumbnail = 3;
+}
+
+message Album {
+    string id = 1;
+    string title = 2;
+    string artists = 3;
+    string thumbnail = 4;
+    string type = 5;
+    string year = 6;
+}

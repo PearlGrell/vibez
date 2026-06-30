@@ -20,7 +20,7 @@ import { User } from '../users/entities/user.entity';
         options: {
           package: 'search',
           protoPath: path.join('/', 'protos', 'search.proto'),
-          url: 'grpc:50051',
+          url: process.env.GRPC_URL ?? 'grpc:50051',
         },
       },
     ]),

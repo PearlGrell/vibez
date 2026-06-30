@@ -19,7 +19,7 @@ import { Artist } from '../artists/entities/artist.entity';
         options: {
           package: 'album',
           protoPath: path.join('/', 'protos', 'album.proto'),
-          url: 'grpc:50051',
+          url: process.env.GRPC_URL ?? 'grpc:50051',
         },
       },
     ]),
