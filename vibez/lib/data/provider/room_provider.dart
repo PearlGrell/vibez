@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:vibez/core/network/socket_client.dart';
 import 'package:vibez/data/models/queue_item.dart';
+import 'package:vibez/data/models/request_item.dart';
 import 'package:vibez/data/models/room.dart';
 import 'package:vibez/data/models/room_state.dart';
 import 'package:vibez/data/models/song.dart';
+import 'package:vibez/data/models/user.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
 import 'package:vibez/data/provider/song_cache_provider.dart';
 import 'package:vibez/data/provider/user_provider.dart';
@@ -30,7 +32,21 @@ class RoomProvider extends ChangeNotifier {
   StreamSubscription? _sub;
   StreamSubscription? _globalSub;
   StreamSubscription? _queueSub;
+  StreamSubscription? _requestSub;
   StreamSubscription? _connectionSub;
+  StreamSubscription? _djRequestsSub;
+
+  final StreamController<RequestItem> _songRequestedController =
+      StreamController<RequestItem>.broadcast();
+  final StreamController<User> _djRequestedController =
+      StreamController<User>.broadcast();
+
+  // Fires once per new request, separate from [requestItems]/[djRequests]:
+  // ChangeNotifierProvider exposes the same mutated instance as both
+  // previous and next in ref.listen, so list-length diffing can't detect
+  // arrivals there. Consumers (e.g. in-room alerts) listen to these instead.
+  Stream<RequestItem> get onSongRequested => _songRequestedController.stream;
+  Stream<User> get onDjRequested => _djRequestedController.stream;
 
   bool _disposed = false;
 
@@ -39,6 +55,8 @@ class RoomProvider extends ChangeNotifier {
   int participants = 0;
   List<String> participantsInitials = [];
   List<QueueItem> queue = [];
+  List<RequestItem> requestItems = [];
+  List<User> djRequests = [];
   List<Song> recommendations = [];
   bool isInRoom = false;
   Object? error;
@@ -52,10 +70,6 @@ class RoomProvider extends ChangeNotifier {
 
   Future<void> _maybeFetchRecommendations() async {
     final currentSong = room?.currentSong;
-    debugPrint(
-      '[REC] _maybeFetch: currentSong=${currentSong?.id} '
-      'lastSong=${_lastSong?.id} state=$recommendationState',
-    );
     if (currentSong == null || currentSong.id == _lastSong?.id) return;
 
     recommendationState = RecommendationState.loading;
@@ -66,12 +80,10 @@ class RoomProvider extends ChangeNotifier {
       final res = await _ref
           .read(songCacheProvider.notifier)
           .fetchRelated(currentSong.id);
-      debugPrint('[REC] fetchRelated returned ${res?.length} songs');
       recommendations = res ?? [];
       recommendationState = RecommendationState.success;
       _lastSong = currentSong;
     } catch (e) {
-      debugPrint('[REC] fetchRelated threw: $e');
       recommendationState = RecommendationState.error;
     }
     notifyListeners();
@@ -103,9 +115,13 @@ class RoomProvider extends ChangeNotifier {
           Map<String, dynamic>.from(data as Map),
         );
         if (update.room.id != roomId) return;
+        final previousDjId = room?.currentDj?.id;
         room = update.room;
         participants = update.participants;
         participantsInitials = update.participantsInitials;
+        if (room?.currentDj != null && room?.currentDj?.id != previousDjId) {
+          djRequests.clear();
+        }
         notifyListeners();
         _maybeFetchRecommendations();
       });
@@ -121,6 +137,24 @@ class RoomProvider extends ChangeNotifier {
                 )
                 .toList() ??
             [];
+        notifyListeners();
+      });
+
+      _requestSub = _socket.stream('room:song_requested').listen((data) async {
+        final map = Map<String, dynamic>.from(data as Map);
+        if (map['roomId'] != roomId) return;
+        final item = RequestItem.fromJson(map);
+        requestItems.add(item);
+        _songRequestedController.add(item);
+        notifyListeners();
+      });
+
+      _djRequestsSub = _socket.stream('room:dj_requested').listen((data) async {
+        final map = Map<String, dynamic>.from(data as Map);
+        final user = User.fromJson(Map<String, dynamic>.from(map['user'] as Map));
+        if (djRequests.any((u) => u.id == user.id)) return;
+        djRequests.add(user);
+        _djRequestedController.add(user);
         notifyListeners();
       });
 
@@ -190,6 +224,19 @@ class RoomProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> requestSong(String songId) async {
+    await _socket.emitWithAck('room:request_song', {
+      'roomId': roomId,
+      'songId': songId,
+    });
+  }
+
+  Future<void> requestDj() async {
+    await _socket.emitWithAck('room:request_dj', {
+      'roomId': roomId,
+    });
+  }
+
   Future<void> songChanged(String songId) async {
     await _socket.emitWithAck('room:song_changed', {
       'roomId': roomId,
@@ -199,6 +246,50 @@ class RoomProvider extends ChangeNotifier {
 
   Future<void> removeRecommendation(String songId) async {
     recommendations.removeWhere((song) => song.id == songId);
+    notifyListeners();
+  }
+
+  Future<void> acceptRequest(
+    String songId,
+    String requestedById,
+    DateTime addedAt,
+  ) async {
+    await _socket.emitWithAck('room:add_song', {
+      'roomId': roomId,
+      'songId': songId,
+      'requestedById': requestedById,
+    });
+    _removeRequest(songId, requestedById, addedAt);
+  }
+
+  void rejectRequest(String songId, String userId, DateTime addedAt) async {
+    _removeRequest(songId, userId, addedAt);
+  }
+
+  void _removeRequest(String songId, String userId, DateTime addedAt) {
+    requestItems.removeWhere(
+      (item) =>
+          item.requestedBy.id == userId &&
+          item.song.id == songId &&
+          item.addedAt == addedAt,
+    );
+    notifyListeners();
+  }
+
+  Future<void> acceptDjRequest(String userId) async {
+    await _socket.emitWithAck('room:assign_dj', {
+      'roomId': roomId,
+      'userId': userId,
+    });
+    _removeDjRequest(userId);
+  }
+
+  void rejectDjRequest(String userId) {
+    _removeDjRequest(userId);
+  }
+
+  void _removeDjRequest(String userId) {
+    djRequests.removeWhere((user) => user.id == userId);
     notifyListeners();
   }
 
@@ -313,7 +404,11 @@ class RoomProvider extends ChangeNotifier {
     _sub?.cancel();
     _globalSub?.cancel();
     _queueSub?.cancel();
+    _requestSub?.cancel();
+    _djRequestsSub?.cancel();
     _connectionSub?.cancel();
+    _songRequestedController.close();
+    _djRequestedController.close();
     super.dispose();
   }
 }

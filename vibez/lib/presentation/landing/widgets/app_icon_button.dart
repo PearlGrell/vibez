@@ -5,10 +5,12 @@ class AppIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final double iconSize;
+  final VoidCallback? onLongPress;
   const AppIconButton({
     super.key,
     required this.icon,
     required this.onTap,
+    this.onLongPress,
     this.iconSize = 24,
   });
 
@@ -24,9 +26,10 @@ class AppIconButton extends StatelessWidget {
           shape: const CircleBorder(
             side: BorderSide(color: AppColors.hairlineDark),
           ),
-          child: InkWell(
+          child: GestureDetector(
+            onLongPress:onLongPress,
             onTap: onTap,
-            customBorder: const CircleBorder(),
+            behavior: .opaque,
             child: Icon(icon, color: AppColors.text2, size: iconSize),
           ),
         ),

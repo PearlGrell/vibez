@@ -363,7 +363,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   async addSong(@ConnectedSocket() client: Socket, @MessageBody() data: AddSongDto): Promise<QueueItemResponseDto> {
     try {
       await this.ensureDj(data.roomId, client.data.user.sub);
-      const item = await this.roomService.addSongToQueue(data.roomId, data.songId, client.data.user.sub);
+      const item = await this.roomService.addSongToQueue(data.roomId, data.songId, client.data.user.sub, data.requestedById);
 
       this.broadcastPlaybackQueue(data.roomId);
       return { item };
@@ -398,7 +398,7 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const song = await this.roomService.getSongById(data.songId);
     const user = await this.roomService.getUserById(client.data.user.sub);
 
-    const payload: SongRequestResponseDto = { roomId: data.roomId, song, requestedBy: user };
+    const payload: SongRequestResponseDto = { roomId: data.roomId, song, requestedBy: user, addedAt: new Date().toISOString() };
     this.server.to(`room:${data.roomId}`).emit(RoomEvents.SONG_REQUESTED, payload);
     return payload;
   }

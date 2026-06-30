@@ -16,7 +16,9 @@ Future<void> main() async {
   final container = ProviderContainer();
 
   await PlayerAudioService.init(container);
-  SocketClient.instance.initialize().ignore();
+  SocketClient.instance.initialize().catchError((Object err) {
+    debugPrint('Socket initialize failed: $err');
+  });
 
   runApp(UncontrolledProviderScope(container: container, child: const Vibez()));
 }

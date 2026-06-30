@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:vibez/core/network/dio_exception_handler.dart';
 import 'package:vibez/core/network/socket_client.dart';
 import 'package:vibez/core/storage/token_storage.dart';
@@ -27,7 +28,7 @@ class AuthRepository {
         password: password,
       );
       await _tokenStorage.setAccessToken(res['token']);
-      SocketClient.instance.reconnect().ignore();
+      await _reconnectSocket();
       return true;
     } on DioException catch (err) {
       String errorMessage = DioExceptionHandler.getMessage(err);
@@ -40,7 +41,7 @@ class AuthRepository {
     try {
       final res = await _authService.login(email: email, password: password);
       await _tokenStorage.setAccessToken(res['token']);
-      SocketClient.instance.reconnect().ignore();
+      await _reconnectSocket();
       return true;
     } on DioException catch (err) {
       String errorMessage = DioExceptionHandler.getMessage(err);
@@ -95,5 +96,16 @@ class AuthRepository {
 
   Future<void> logout() async {
     await _tokenStorage.clear();
+  }
+
+  // Awaited so the new auth token is on the socket before callers (e.g. login
+  // screens) navigate into screens that immediately depend on it; failures
+  // are logged instead of surfaced since the REST auth already succeeded.
+  Future<void> _reconnectSocket() async {
+    try {
+      await SocketClient.instance.reconnect();
+    } catch (err) {
+      debugPrint('Socket reconnect failed after auth: $err');
+    }
   }
 }

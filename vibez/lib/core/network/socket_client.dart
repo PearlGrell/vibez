@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:socket_io_client/socket_io_client.dart' as ws;
 import 'package:vibez/core/storage/token_storage.dart';
@@ -38,6 +39,7 @@ class SocketClient {
       if (!completer.isCompleted) completer.complete();
     });
     _socket.onConnectError((err) {
+      debugPrint('Socket connect error: $err');
       if (!completer.isCompleted) completer.completeError(err);
     });
 
@@ -73,6 +75,7 @@ class SocketClient {
       if (!completer.isCompleted) completer.complete();
     });
     _socket.onConnectError((err) {
+      debugPrint('Socket reconnect error: $err');
       if (!completer.isCompleted) completer.completeError(err);
     });
 

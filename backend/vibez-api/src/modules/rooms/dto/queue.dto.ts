@@ -3,6 +3,7 @@ import z from 'zod';
 export const addSongSchema = z.object({
   roomId: z.string(),
   songId: z.string(),
+  requestedById: z.string().optional()
 });
 
 export type AddSongDto = z.infer<typeof addSongSchema>;

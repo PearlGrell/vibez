@@ -144,7 +144,7 @@ export class RoomsService implements OnModuleDestroy {
     });
   }
 
-  async addSongToQueue(roomId: string, songId: string, userId: string) {
+  async addSongToQueue(roomId: string, songId: string, userId: string, requestedById?: string) {
     const song = await this.songService.findById(songId);
     if (!song) {
       throw new NotFoundException('Song not found');
@@ -165,7 +165,7 @@ export class RoomsService implements OnModuleDestroy {
     const item = this.queueRepo.create({
       roomId,
       songId,
-      addedById: userId,
+      addedById: requestedById ?? userId,
       position: (lastItem?.position ?? -1) + 1,
     });
 

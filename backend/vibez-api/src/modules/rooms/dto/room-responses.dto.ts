@@ -61,4 +61,5 @@ export interface SongRequestResponseDto {
   roomId: string;
   song: Song;
   requestedBy: User;
+  addedAt: string;
 }

@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vibez/core/router/app_router.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
@@ -11,6 +12,7 @@ import 'package:vibez/data/models/queue_item.dart';
 import 'package:vibez/data/models/request_item.dart';
 import 'package:vibez/data/models/search_result.dart';
 import 'package:vibez/data/models/song.dart';
+import 'package:vibez/data/models/user.dart';
 import 'package:vibez/data/provider/room_provider.dart';
 import 'package:vibez/data/provider/room_playback_provider.dart';
 import 'package:vibez/data/provider/user_provider.dart';
@@ -31,6 +33,7 @@ class DjControlScreen extends ConsumerStatefulWidget {
 
 class _DjControlScreenState extends ConsumerState<DjControlScreen> {
   int _selectedTab = 0;
+  final Set<String> _loadingDjUserIds = {};
 
   @override
   Widget build(BuildContext context) {
@@ -43,12 +46,12 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
           children: [
             _buildHeader(context, roomRef),
             const SizedBox(height: AppSpacing.s4),
-            _buildTabBar(context),
+            _buildTabBar(context, roomRef),
             const SizedBox(height: AppSpacing.s4),
             Expanded(
               child: _selectedTab == 0
                   ? _buildBoothTab(context, roomRef)
-                  : _buildRequestsTab(context),
+                  : _buildRequestsTab(context, roomRef),
             ),
           ],
         ),
@@ -125,14 +128,16 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
     );
   }
 
-  Widget _buildTabBar(BuildContext context) {
+  Widget _buildTabBar(BuildContext context, RoomProvider roomRef) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       child: Row(
         children: [
           Expanded(child: _buildTab('Booth', 0)),
           const SizedBox(width: AppSpacing.s2),
-          Expanded(child: _buildTab('Requests · ${0}', 1)),
+          Expanded(
+            child: _buildTab('Requests · ${roomRef.requestItems.length + roomRef.djRequests.length}', 1),
+          ),
         ],
       ),
     );
@@ -207,12 +212,12 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
                 index,
                 song,
                 () async {
-                    await roomRef.songChanged(song.id);
-                    roomRef.removeRecommendation(song.id);
+                  await roomRef.songChanged(song.id);
+                  roomRef.removeRecommendation(song.id);
                 },
                 () async {
-                    await roomRef.addSong(song.id);
-                    roomRef.removeRecommendation(song.id);
+                  await roomRef.addSong(song.id);
+                  roomRef.removeRecommendation(song.id);
                 },
               ),
           const SizedBox(height: AppSpacing.s8),
@@ -553,8 +558,8 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
                         TextSpan(
                           text: isDj
                               ? 'added by DJ'
-                              : 'req @${item.addedBy.name}',
-                          style: const TextStyle(color: AppColors.danger),
+                              : 'req @${item.addedBy.username}',
+                          style: const TextStyle(color: AppColors.success),
                         ),
                       ],
                     ),
@@ -742,10 +747,11 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
     );
   }
 
-  Widget _buildRequestsTab(BuildContext context) {
-    final requests = <RequestItem>[];
+  Widget _buildRequestsTab(BuildContext context, RoomProvider roomRef) {
+    final requests = roomRef.requestItems;
+    final djRequests = roomRef.djRequests;
 
-    if (requests.isEmpty) {
+    if (requests.isEmpty && djRequests.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
@@ -783,7 +789,7 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
                 ),
                 const SizedBox(height: AppSpacing.s2),
                 Text(
-                  "When listeners request a track,\nit'll show up here for you to accept.",
+                  "When listeners request a track or\nthe booth, it'll show up here for you to accept.",
                   textAlign: TextAlign.center,
                   style: Theme.of(
                     context,
@@ -802,21 +808,146 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Listeners are requesting tracks. Accept to drop them into the queue.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.text2),
-          ),
-          const SizedBox(height: AppSpacing.s4),
-          ...requests.map((r) => _buildRequestCard(context, r)),
+          if (djRequests.isNotEmpty) ...[
+            Text(
+              'Listeners want to take over the booth.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.text2),
+            ),
+            const SizedBox(height: AppSpacing.s4),
+            ...djRequests.map((u) => _buildDjRequestCard(context, u, roomRef)),
+            const SizedBox(height: AppSpacing.s6),
+          ],
+          if (requests.isNotEmpty) ...[
+            Text(
+              'Listeners are requesting tracks. Accept to drop them into the queue.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.text2),
+            ),
+            const SizedBox(height: AppSpacing.s4),
+            ...requests.map((r) => _buildRequestCard(context, r, roomRef)),
+          ],
           const SizedBox(height: AppSpacing.s8),
         ],
       ),
     );
   }
 
-  Widget _buildRequestCard(BuildContext context, RequestItem item) {
+  Widget _buildDjRequestCard(
+    BuildContext context,
+    User user,
+    RoomProvider roomRef,
+  ) {
+    final avatarColor = AppColors.generateBgColor(user.name);
+    final isLoadingThis = _loadingDjUserIds.contains(user.id);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.s3),
+      padding: const EdgeInsets.all(AppSpacing.s4),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.hairlineDark),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: avatarColor.bg,
+            ),
+            child: Center(
+              child: Text(
+                user.name[0].toUpperCase(),
+                style: TextStyle(
+                  color: AppColors.generateTextColor(user.name),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.s3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.name,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (user.username != null)
+                  Text(
+                    '@${user.username}',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
+                  ),
+              ],
+            ),
+          ),
+          _buildCircleActionButton(
+            icon: Icons.close,
+            backgroundColor: AppColors.card,
+            iconColor: AppColors.text2,
+            onTap: () {
+              roomRef.rejectDjRequest(user.id);
+              AppSnackbar.show(
+                message: "DJ request from ${user.name} rejected.",
+              );
+            },
+          ),
+          SizedBox(width: isLoadingThis ? AppSpacing.s4 : AppSpacing.s2),
+          if (!isLoadingThis)
+            _buildCircleActionButton(
+              icon: Icons.check,
+              backgroundColor: AppColors.success,
+              iconColor: Colors.white,
+              onTap: () async {
+                setState(() {
+                  _loadingDjUserIds.add(user.id);
+                });
+                await roomRef.acceptDjRequest(user.id);
+                if (!mounted) return;
+                setState(() {
+                  _loadingDjUserIds.remove(user.id);
+                });
+                AppSnackbar.show(
+                  message: "${user.name} is now the DJ.",
+                );
+                AppRouter.instance.pop();
+              },
+            ),
+          if (isLoadingThis)
+            SizedBox(
+              height: 28,
+              width: 28,
+              child: CircularProgressIndicator(
+                strokeCap: .round,
+                strokeWidth: 1.5,
+                color: AppColors.success,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  bool isLoading = false;
+  Widget _buildRequestCard(
+    BuildContext context,
+    RequestItem item,
+    RoomProvider roomRef,
+  ) {
     final requestedBy = item.requestedBy;
     final avatarColor = AppColors.generateBgColor(requestedBy.name);
     final currentSong = item.song;
@@ -897,31 +1028,94 @@ class _DjControlScreenState extends ConsumerState<DjControlScreen> {
               ),
               const SizedBox(width: AppSpacing.s2),
               Expanded(
-                child: Text(
-                  '@${item.requestedBy} · ${item.addedAt}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
+                child: StreamBuilder(
+                  stream: Stream.periodic(
+                    Duration(seconds: 30),
+                    (_) => DateTime.now(),
+                  ),
+                  builder: (context, asyncSnapshot) {
+                    return Text(
+                      '@${item.requestedBy.username} · ${timeAgo(item.addedAt)}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.text2),
+                    );
+                  },
                 ),
               ),
               _buildCircleActionButton(
                 icon: Icons.close,
                 backgroundColor: AppColors.card,
                 iconColor: AppColors.text2,
-                onTap: () {},
+                onTap: () {
+                  roomRef.rejectRequest(
+                    item.song.id,
+                    item.requestedBy.id,
+                    item.addedAt,
+                  );
+                  AppSnackbar.show(
+                    message: "Request from ${item.requestedBy.name} rejected.",
+                  );
+                },
               ),
-              const SizedBox(width: AppSpacing.s2),
-              _buildCircleActionButton(
-                icon: Icons.check,
-                backgroundColor: AppColors.success,
-                iconColor: Colors.white,
-                onTap: () {},
-              ),
+              SizedBox(width: isLoading ? AppSpacing.s4 : AppSpacing.s2),
+              if (!isLoading)
+                _buildCircleActionButton(
+                  icon: Icons.check,
+                  backgroundColor: AppColors.success,
+                  iconColor: Colors.white,
+                  onTap: () async {
+                    setState(() {
+                      isLoading = true;
+                    });
+                    await roomRef.acceptRequest(
+                      item.song.id,
+                      item.requestedBy.id,
+                      item.addedAt,
+                    );
+                    setState(() {
+                      isLoading = false;
+                    });
+                    AppSnackbar.show(
+                      message: "${item.song.title} added to the queue.",
+                    );
+                  },
+                ),
+              if (isLoading)
+                SizedBox(
+                  height: 28,
+                  width: 28,
+                  child: CircularProgressIndicator(
+                    strokeCap: .round,
+                    strokeWidth: 1.5,
+                    color: AppColors.success,
+                  ),
+                ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  String timeAgo(DateTime dateTime) {
+    final difference = DateTime.now().difference(dateTime);
+
+    if (difference.inSeconds < 60) {
+      return '${difference.inSeconds} sec ago';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} min ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} hr ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+    } else if (difference.inDays < 30) {
+      return '${difference.inDays ~/ 7} week${difference.inDays ~/ 7 > 1 ? 's' : ''} ago';
+    } else if (difference.inDays < 365) {
+      return '${difference.inDays ~/ 30} month${difference.inDays ~/ 30 > 1 ? 's' : ''} ago';
+    } else {
+      return '${difference.inDays ~/ 365} year${difference.inDays ~/ 365 > 1 ? 's' : ''} ago';
+    }
   }
 
   Widget _buildCircleActionButton({
