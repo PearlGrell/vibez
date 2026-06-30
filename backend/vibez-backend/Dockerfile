@@ -13,5 +13,7 @@ RUN pip install --no-cache-dir -U yt-dlp
 
 COPY . .
 
+ENV PYTHONUNBUFFERED=1
+
 EXPOSE 50051
 CMD ["python", "server.py"]
