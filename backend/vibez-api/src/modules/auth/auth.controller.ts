@@ -12,12 +12,19 @@ import { type UpdateEmailDto, updateEmailSchema } from './dto/update-email.dto';
 import { type ChangePasswordDto, changePasswordSchema } from './dto/change-password.dto';
 import { AuthGuard } from './guards/auth.guard';
 import { CurrentUser, type UserPayload } from 'src/common/decorators/current-user.decorator';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+
+// Credential-guessing targets get a tight per-IP budget; everything else on
+// this controller falls back to the module default (20/min).
+const STRICT_RATE_LIMIT = { default: { ttl: 60_000, limit: 8 } };
 
 @Controller('auth')
+@UseGuards(ThrottlerGuard)
 export class AuthController {
   constructor(private auth: AuthService) {}
 
   @Post('login')
+  @Throttle(STRICT_RATE_LIMIT)
   @UsePipes(new ZodPipe(loginSchema))
   async login(
     @Body() body: LoginDto,
@@ -47,6 +54,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @Throttle(STRICT_RATE_LIMIT)
   @UsePipes(new ZodPipe(registerSchema))
   async register(
     @Body() body: RegisterDto,
@@ -76,24 +84,28 @@ export class AuthController {
   }
 
   @Post('forgot')
+  @Throttle(STRICT_RATE_LIMIT)
   @UsePipes(new ZodPipe(forgotPasswordSchema))
   async forgot(@Body() body: ForgotPasswordDto) {
     return this.auth.forgot(body.email);
   }
 
   @Post('forgot/resend')
+  @Throttle(STRICT_RATE_LIMIT)
   @UsePipes(new ZodPipe(resendOtpSchema))
   async resend(@Body() body: ResendOtpDto) {
     return this.auth.resend(body.email);
   }
 
   @Post('verify')
+  @Throttle(STRICT_RATE_LIMIT)
   @UsePipes(new ZodPipe(verifyOtpSchema))
   async verify(@Body() body: VerifyOtpDto) {
     return this.auth.verify(body.email, body.otp);
   }
 
   @Post('reset')
+  @Throttle(STRICT_RATE_LIMIT)
   @UsePipes(new ZodPipe(resetPasswordSchema))
   async reset(@Body() body: ResetPasswordDto) {
     return this.auth.reset(body.resetToken, body.password);

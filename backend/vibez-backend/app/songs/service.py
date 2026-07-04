@@ -17,6 +17,11 @@ class SongService:
         "format": "bestaudio",
         "quiet": True,
         "no_warnings": True,
+        "noplaylist": True,
+        # Innertube clients skip the youtube.com watch page, where datacenter
+        # IPs get bot-checked first. Bot checks are per video AND per client,
+        # so list several: yt-dlp falls through to the next on failure.
+        "extractor_args": {"youtube": {"player_client": ["android_vr", "android", "tv"]}},
     }
     
     def __init__(self):

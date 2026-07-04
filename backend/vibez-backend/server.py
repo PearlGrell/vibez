@@ -1,6 +1,7 @@
 """The Python implementation of the gRPC route guide server."""
 
 import logging
+import signal
 from concurrent import futures
 
 import grpc
@@ -23,6 +24,7 @@ from app.search.servicer import SearchServicer
 from app.songs.servicer import SongServicer
 from app.albums.servicer import AlbumServicer
 from app.artists.servicer import ArtistServicer
+from app.stream_relay import start_stream_relay
 
 
 def serve():
@@ -62,6 +64,16 @@ def serve():
     server.add_insecure_port(listen_addr)
     print(f"Starting  server on {listen_addr}")
     server.start()
+
+    start_stream_relay(int(os.environ.get("STREAM_RELAY_PORT", "8080")))
+
+    def handle_sigterm(*_):
+        # Stop accepting new RPCs but give in-flight ones time to finish,
+        # so Railway deploys/restarts don't kill requests mid-response.
+        server.stop(grace=10)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    signal.signal(signal.SIGINT, handle_sigterm)
     server.wait_for_termination()
 
 

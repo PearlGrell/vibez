@@ -6,6 +6,7 @@ services:
       - "3000:3000"
     environment:
       - GRPC_URL=grpc:50051
+      - STREAM_RELAY_URL=http://grpc:8080
     develop:
       watch:
         - action: sync
@@ -24,3 +25,5 @@ services:
     container_name: grpc
     ports:
       - "50051:50051"
+    expose:
+      - "8080"

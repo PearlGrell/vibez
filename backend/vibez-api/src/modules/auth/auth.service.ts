@@ -3,10 +3,11 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  type OnApplicationBootstrap,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { User } from '../users/entities/user.entity';
@@ -19,7 +20,7 @@ import { UpdateEmailDto } from './dto/update-email.dto';
 import { generateNanoId } from 'src/utils/nanoid';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnApplicationBootstrap {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -27,6 +28,19 @@ export class AuthService {
     private readonly sessionRepository: Repository<Session>,
     private readonly jwtService: JwtService,
   ) {}
+
+  onApplicationBootstrap() {
+    void this.purgeExpiredSessions();
+    setInterval(() => void this.purgeExpiredSessions(), 24 * 60 * 60 * 1000).unref();
+  }
+
+  private async purgeExpiredSessions() {
+    try {
+      await this.sessionRepository.delete({ expiresAt: LessThan(new Date()) });
+    } catch {
+      // Non-fatal: retried on the next daily tick.
+    }
+  }
 
   async login(
     email: string,

@@ -6,6 +6,7 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import path from 'path';
 import { cwd } from 'process';
 import express from 'express';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -14,8 +15,12 @@ async function bootstrap() {
       prefix: 'Vibez API',
     }),
   });
+  app.use(helmet());
   app.use('/', express.static(path.join(process.cwd(), 'public')));
-  app.enableCors();
+  // Mobile clients don't send an Origin header, so CORS only matters for
+  // browsers: allow only explicitly configured web origins.
+  const corsOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim());
+  app.enableCors({ origin: corsOrigins ?? false });
   app.setGlobalPrefix('/api');
   app.use(cookieParser());
   await app.listen(process.env.PORT ?? 3000, () => {
@@ -23,4 +28,3 @@ async function bootstrap() {
   });
 }
 bootstrap();
- //dddd
