@@ -6,7 +6,10 @@ import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
+import 'package:vibez/core/utils/app_snackbar.dart';
+import 'package:vibez/core/utils/share_util.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
+import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
 import 'package:vibez/data/models/user.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -65,6 +68,29 @@ class ProfileScreen extends ConsumerWidget {
                         seed: profile.name,
                         size: double.infinity,
                         radius: 0,
+                      ),
+                      Positioned(
+                        right: AppSpacing.s4,
+                        top: MediaQuery.paddingOf(context).top + 8,
+                        child: AppIconButton(
+                          icon: Icons.ios_share_rounded,
+                          iconSize: 18,
+                          onTap: () async {
+                            ShareUtil(
+                              shareMode: .user,
+                              id: profile.id,
+                              title: profile.name,
+                              url: profile.profileUrl,
+                            ).share().then((value) {
+                              if (!value) {
+                                AppSnackbar.show(
+                                  message: "Failed to share",
+                                  type: AppSnackType.error,
+                                );
+                              }
+                            });
+                          },
+                        ),
                       ),
                       Positioned.fill(
                         child: DecoratedBox(

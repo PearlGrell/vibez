@@ -6,6 +6,7 @@ import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/shadows.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
+import 'package:vibez/core/utils/share_util.dart';
 import 'package:vibez/data/models/queue_item.dart';
 import 'package:vibez/data/provider/room_provider.dart';
 import 'package:vibez/data/provider/user_provider.dart';
@@ -140,9 +141,23 @@ class RoomDetailsScreen extends ConsumerWidget {
           top: MediaQuery.of(context).padding.top + 8,
           right: 8,
           child: AppIconButton(
-            icon: Icons.ios_share_outlined,
+            icon: Icons.ios_share_rounded,
             iconSize: 18,
-            onTap: () {},
+            onTap: () async {
+              ShareUtil(
+                shareMode: .room,
+                id: room.id,
+                title: room.name,
+                url: null,
+              ).share().then((value) {
+                if (!value) {
+                  AppSnackbar.show(
+                    message: "Failed to share",
+                    type: AppSnackType.error,
+                  );
+                }
+              });
+            },
           ),
         ),
       ],

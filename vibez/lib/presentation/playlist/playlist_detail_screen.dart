@@ -13,6 +13,7 @@ import 'package:vibez/data/repositories/playlist_repository.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/song_options_bottom_sheet.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
+import 'package:vibez/core/utils/share_util.dart';
 import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
 import 'package:vibez/presentation/common/details_skeleton.dart';
 import 'package:vibez/presentation/common/search_song_helper.dart';
@@ -213,6 +214,26 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               },
             ),
             actions: [
+              if (!isVirtual && _playlist != null)
+                AppIconButton(
+                  icon: Icons.ios_share_rounded,
+                  iconSize: 18,
+                  onTap: () async {
+                    ShareUtil(
+                      shareMode: .playlist,
+                      id: widget.playlistId,
+                      title: playlistName,
+                      url: _playlist?.thumbnail,
+                    ).share().then((value) {
+                      if (!value) {
+                        AppSnackbar.show(
+                          message: "Failed to share",
+                          type: AppSnackType.error,
+                        );
+                      }
+                    });
+                  },
+                ),
               if (!isVirtual && _playlist?.createdById == userState?.id)
                 Padding(
                   padding: const EdgeInsets.all(8.0),

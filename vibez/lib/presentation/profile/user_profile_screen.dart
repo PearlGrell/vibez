@@ -9,6 +9,8 @@ import 'package:vibez/data/models/room.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/data/repositories/user_repository.dart';
 import 'package:vibez/data/repositories/room_repository.dart';
+import 'package:vibez/core/utils/app_snackbar.dart';
+import 'package:vibez/core/utils/share_util.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/details_skeleton.dart';
 import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
@@ -166,6 +168,29 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     child: AppIconButton(
                       icon: Icons.chevron_left,
                       onTap: () => Navigator.pop(context),
+                    ),
+                  ),
+                  Positioned(
+                    right: AppSpacing.s4,
+                    top: MediaQuery.paddingOf(context).top + 8,
+                    child: AppIconButton(
+                      icon: Icons.ios_share_rounded,
+                      iconSize: 18,
+                      onTap: () async {
+                        ShareUtil(
+                          shareMode: .user,
+                          id: profile.id,
+                          title: profile.name,
+                          url: profile.profileUrl,
+                        ).share().then((value) {
+                          if (!value) {
+                            AppSnackbar.show(
+                              message: "Failed to share",
+                              type: AppSnackType.error,
+                            );
+                          }
+                        });
+                      },
                     ),
                   ),
                   Positioned(

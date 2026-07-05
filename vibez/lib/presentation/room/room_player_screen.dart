@@ -11,6 +11,7 @@ import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/shadows.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
+import 'package:vibez/core/utils/share_util.dart';
 import 'package:vibez/data/models/lyrics.dart';
 import 'package:vibez/data/models/search_result.dart';
 import 'package:vibez/data/models/song.dart';
@@ -259,7 +260,24 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
         AppIconButton(
           icon: Icons.ios_share_rounded,
           iconSize: 18,
-          onTap: () {},
+          onTap: () async {
+            final room = roomRef.room;
+            if (room != null) {
+              ShareUtil(
+                shareMode: .room,
+                id: room.id,
+                title: room.name,
+                url: null,
+              ).share().then((value) {
+                if (!value) {
+                  AppSnackbar.show(
+                    message: "Failed to share",
+                    type: AppSnackType.error,
+                  );
+                }
+              });
+            }
+          },
         ),
       ],
       title: Column(
