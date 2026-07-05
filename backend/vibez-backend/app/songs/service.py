@@ -142,10 +142,24 @@ class SongService:
             return 0
 
     @staticmethod
-    def _extract(video_id, proxy=None):
+    def _build_opts(proxy=None):
         opts = dict(SongService.YDL_OPTS)
+        cookiefile = os.environ.get("COOKIES_FILE")
+        if cookiefile and os.path.exists(cookiefile):
+            # A logged-in session bypasses the datacenter "confirm you're not a
+            # bot" wall AND satisfies PO-token gating, so authenticated web URLs
+            # download fully. Let yt-dlp use its default (web) clients, which is
+            # what actually consumes cookies — the anonymous android_vr set does
+            # not, so drop the restriction when cookies are present.
+            opts["cookiefile"] = cookiefile
+            opts.pop("extractor_args", None)
         if proxy:
             opts["proxy"] = proxy
+        return opts
+
+    @staticmethod
+    def _extract(video_id, proxy=None):
+        opts = SongService._build_opts(proxy)
         watch_url = f"https://www.youtube.com/watch?v={video_id}"
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(watch_url, download=False)

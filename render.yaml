@@ -17,6 +17,10 @@ services:
       # Managed Postgres (Neon/Supabase) requires SSL.
       - key: PGSSL
         value: "true"
+      # yt-dlp cookies to bypass the datacenter bot wall. Add a Render Secret
+      # File named cookies.txt (Settings > Secret Files) — it mounts here.
+      - key: COOKIES_FILE
+        value: /etc/secrets/cookies.txt
       # Filled in via the Render dashboard on deploy (not stored in git).
       - key: PGHOST
         sync: false
