@@ -12,6 +12,7 @@ import { RoomsModule } from './modules/rooms/rooms.module';
 import { SongsModule } from './modules/songs/songs.module';
 import { ArtistsModule } from './modules/artists/artists.module';
 import { AlbumsModule } from './modules/albums/albums.module';
+import { HealthController } from './modules/health/health.controller';
 
 @Module({
   imports: [
@@ -30,5 +31,6 @@ import { AlbumsModule } from './modules/albums/albums.module';
     ArtistsModule,
     AlbumsModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

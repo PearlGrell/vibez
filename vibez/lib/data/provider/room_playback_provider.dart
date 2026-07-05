@@ -201,6 +201,8 @@ class RoomPlaybackNotifier extends Notifier<RoomPlaybackState> {
           startedAt,
           _serverTimeOffset,
           shouldPlay,
+          headers: playbackInfo.headers,
+          mimeType: playbackInfo.mimeType,
         );
       } else {
         state = state.copyWith(playbackLoadState: LoadState.error);

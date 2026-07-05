@@ -3,6 +3,7 @@ import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/core/theme/typography.dart';
+import 'package:vibez/core/utils/image_cache_size.dart';
 import 'package:vibez/data/models/search_result.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 
@@ -36,6 +37,7 @@ class PlaylistTile extends StatelessWidget {
                         playlist.thumbnail!,
                         width: 52,
                         height: 52,
+                        cacheWidth: thumbCacheWidth(context, 52),
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       )

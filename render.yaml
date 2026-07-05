@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: vibez-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    envVars:
+      # NODE_ENV=development lets TypeORM auto-create the schema on first boot.
+      - key: NODE_ENV
+        value: development
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      # Managed Postgres (Neon/Supabase) requires SSL.
+      - key: PGSSL
+        value: "true"
+      # Filled in via the Render dashboard on deploy (not stored in git).
+      - key: PGHOST
+        sync: false
+      - key: PGPORT
+        sync: false
+      - key: PGDATABASE
+        sync: false
+      - key: PGUSER
+        sync: false
+      - key: PGPASSWORD
+        sync: false

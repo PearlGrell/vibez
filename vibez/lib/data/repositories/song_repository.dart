@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:vibez/core/network/dio_exception_handler.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
 import 'package:vibez/data/models/song.dart';
@@ -7,6 +8,7 @@ import 'package:vibez/data/models/lyrics.dart';
 import 'package:vibez/data/models/related_song.dart';
 import 'package:vibez/data/models/song_credits.dart';
 import 'package:vibez/data/services/song_service.dart';
+import 'package:vibez/data/services/stream_resolver_service.dart';
 
 class SongRepository {
   static final SongRepository _songRepository = SongRepository._();
@@ -31,14 +33,20 @@ class SongRepository {
   }
 
   Future<PlaybackInfo?> getPlaybackUrl(String id) async {
-    try {
-      final res = await _songService.getPlaybackUrl(id);
-      return PlaybackInfo.fromJson(res);
-    } on DioException catch (err) {
-      String errorMessage = DioExceptionHandler.getMessage(err);
-      AppSnackbar.show(message: errorMessage, type: AppSnackType.error);
-      return null;
-    }
+    // Resolved on-device first: stream URLs are IP-bound, so a URL extracted
+    // by the backend can never play here directly (403). If local resolution
+    // fails (bot-flagged network, restricted video), fall back to the backend
+    // relay endpoint, which streams the audio bytes through the server —
+    // the only server-side approach that survives IP binding.
+    final local = await StreamResolverService.instance.resolve(id);
+    if (local != null) return local;
+
+    final apiUrl = dotenv.get('API_URL', fallback: 'http://localhost:3000');
+    return PlaybackInfo(
+      id: id,
+      playbackUrl: '$apiUrl/api/songs/$id/stream',
+      mimeType: 'audio/mp4',
+    );
   }
 
   Future<Lyrics?> getLyrics(String id) async {

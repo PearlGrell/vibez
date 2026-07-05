@@ -1,24 +1,43 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vibez
+      POSTGRES_PASSWORD: vibez
+      POSTGRES_DB: vibez
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vibez"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   api:
     build:
       context: ./vibez-api
     ports:
       - "3000:3000"
+    env_file:
+      - ./vibez-api/.env
     environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGDATABASE=vibez
+      - PGUSER=vibez
+      - PGPASSWORD=vibez
+      - PGSSL=
       - GRPC_URL=grpc:50051
       - STREAM_RELAY_URL=http://grpc:8080
-    develop:
-      watch:
-        - action: sync
-          path: ./vibez-api
-          target: /app
-          ignore:
-            - node_modules/
-        - action: rebuild
-          path: ./vibez-api/package.json
-
     depends_on:
-      - grpc
+      postgres:
+        condition: service_healthy
+      grpc:
+        condition: service_started
 
   grpc:
     build: ./vibez-backend
@@ -27,3 +46,6 @@ services:
       - "50051:50051"
     expose:
       - "8080"
+
+volumes:
+  pgdata:

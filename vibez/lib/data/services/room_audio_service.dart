@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/provider/room_provider.dart';
+import 'package:vibez/data/services/ranged_audio_source.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 
 class RoomAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
@@ -145,11 +146,21 @@ class RoomAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
     String url,
     DateTime? startedAt,
     Duration serverTimeOffset,
-    bool shouldPlay,
-  ) async {
+    bool shouldPlay, {
+    Map<String, String>? headers,
+    String mimeType = 'audio/mp4',
+  }) async {
     updateMetadata(song);
     try {
-      await _player.setAudioSource(AudioSource.uri(Uri.parse(url)));
+      // Ranged source: some stream URLs 403 requests without a Range header
+      // (see RangedCachingAudioSource). No cache file — rooms play live.
+      await _player.setAudioSource(
+        RangedCachingAudioSource(
+          Uri.parse(url),
+          contentType: mimeType.isNotEmpty ? mimeType : 'audio/mp4',
+          headers: headers,
+        ),
+      );
       
       Duration seekPos = Duration.zero;
       if (startedAt != null) {

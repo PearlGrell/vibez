@@ -17,8 +17,6 @@ async function bootstrap() {
   });
   app.use(helmet());
   app.use('/', express.static(path.join(process.cwd(), 'public')));
-  // Mobile clients don't send an Origin header, so CORS only matters for
-  // browsers: allow only explicitly configured web origins.
   const corsOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim());
   app.enableCors({ origin: corsOrigins ?? false });
   app.setGlobalPrefix('/api');

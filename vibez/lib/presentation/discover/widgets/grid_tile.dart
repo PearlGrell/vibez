@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
+import 'package:vibez/core/utils/image_cache_size.dart';
 import 'package:vibez/data/models/recent_item.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 
@@ -40,6 +41,7 @@ class GridTile extends StatelessWidget {
                 child: item.thumbnail != null && item.thumbnail!.isNotEmpty
                     ? Image.network(
                         item.thumbnail!,
+                        cacheWidth: thumbCacheWidth(context, 200),
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => const SizedBox.shrink(),
                       )

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
+import 'package:vibez/core/utils/image_cache_size.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/player/player_screen.dart';
@@ -119,6 +120,7 @@ class _MiniplayerState extends ConsumerState<Miniplayer> {
                           currentSong.thumbnail!.isNotEmpty
                       ? Image.network(
                           currentSong.thumbnail!,
+                          cacheWidth: thumbCacheWidth(context, 56),
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) =>
                               const SizedBox.shrink(),

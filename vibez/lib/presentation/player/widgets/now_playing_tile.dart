@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
+import 'package:vibez/core/utils/image_cache_size.dart';
 import 'package:vibez/data/models/song.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/equalizer_bars.dart';
@@ -40,6 +41,7 @@ class NowPlayingTile extends StatelessWidget {
                     child: song.thumbnail != null && song.thumbnail!.isNotEmpty
                         ? Image.network(
                             song.thumbnail!,
+                            cacheWidth: thumbCacheWidth(context, 48),
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
                                 const SizedBox.shrink(),

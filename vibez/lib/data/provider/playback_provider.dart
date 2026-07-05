@@ -103,12 +103,24 @@ class PlaybackProvider extends Notifier<PlaybackState> {
   final _random = Random();
   bool _playingFromCollection = false;
 
+  // Set on app start from persisted state; consumed by the first _loadAndPlay
+  // so the restored song resumes where the user left off.
+  Duration? _resumePosition;
+  String? _resumeSongId;
+
   @override
   PlaybackState build() {
     return const PlaybackState();
   }
 
   void play() {
+    // After a restart the song is restored but no source is loaded yet:
+    // load it (and resume position) instead of playing into the void.
+    if (state.playbackInfo == null && state.currentSong != null) {
+      state = state.copyWith(playing: true);
+      retryCurrentSong();
+      return;
+    }
     PlayerAudioService.handler.play();
   }
 
@@ -460,6 +472,15 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     }
   }
 
+  /// Called by the audio handler when a song keeps failing after the retry
+  /// cap: stop retrying, surface the error state, and stay paused.
+  void markPlaybackFailed() {
+    state = state.copyWith(
+      playing: false,
+      playbackLoadState: LoadState.error,
+    );
+  }
+
   Future<void> retryCurrentSong() async {
     final song = state.currentSong;
     if (song == null) return;
@@ -502,9 +523,25 @@ class PlaybackProvider extends Notifier<PlaybackState> {
           playbackInfo: playbackInfo,
           playbackLoadState: LoadState.success,
         );
-        await handler.playUrl(song, playbackInfo.playbackUrl);
+        await handler.playUrl(
+          song,
+          playbackInfo.playbackUrl,
+          headers: playbackInfo.headers,
+          mimeType: playbackInfo.mimeType,
+        );
+
+        final resume = _resumePosition;
+        if (resume != null) {
+          _resumePosition = null;
+          final resumeId = _resumeSongId;
+          _resumeSongId = null;
+          if (song.id == resumeId && resume > Duration.zero) {
+            await handler.seek(resume);
+          }
+        }
 
         _loadRelatedForAutoplay(song.id);
+        _prefetchNextSong();
       } else {
         state = state.copyWith(playbackLoadState: LoadState.error);
       }
@@ -521,13 +558,32 @@ class PlaybackProvider extends Notifier<PlaybackState> {
       final related = await cache.fetchRelated(songId);
       if (related != null && state.currentSong?.id == songId) {
         setAutoplayQueue(related);
+        _prefetchNextSong();
       }
     } catch (_) {}
   }
 
+  /// Resolves the upcoming song's stream URL ahead of time so skips and
+  /// auto-advance start instantly. The cache dedupes in-flight requests and
+  /// keeps entries for 30 minutes, well within stream URL validity.
+  void _prefetchNextSong() {
+    final next = state.queue.isNotEmpty
+        ? state.queue.first
+        : (state.autoplayQueue.isNotEmpty ? state.autoplayQueue.first : null);
+    if (next == null) return;
+    ref
+        .read(songCacheProvider.notifier)
+        .fetchPlaybackInfo(next.id)
+        .catchError((_) => null);
+  }
+
   Future<void> _saveCurrentSong(Song song) async {
     final prefs = await SharedPreferences.getInstance();
+    final previousId = prefs.getString('currentSong');
     await prefs.setString('currentSong', song.id);
+    if (previousId != song.id) {
+      await prefs.setInt('currentSongPosition', 0);
+    }
     _addToRecentlyPlayed(song, prefs);
   }
 
@@ -600,6 +656,11 @@ class PlaybackProvider extends Notifier<PlaybackState> {
 
     final songId = prefs.getString('currentSong');
     if (songId != null) {
+      final savedPosition = prefs.getInt('currentSongPosition') ?? 0;
+      if (savedPosition > 0) {
+        _resumePosition = Duration(seconds: savedPosition);
+        _resumeSongId = songId;
+      }
       final cache = ref.read(songCacheProvider.notifier);
       final song = await cache.fetchSong(songId);
       if (song != null) {
