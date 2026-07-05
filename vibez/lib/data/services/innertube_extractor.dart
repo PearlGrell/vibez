@@ -4,12 +4,6 @@ import 'dart:io';
 import 'package:vibez/core/utils/app_logger.dart';
 import 'package:vibez/data/models/playback_info.dart';
 
-/// A YouTube innertube API client definition.
-///
-/// Values are synced from yt-dlp master
-/// (yt_dlp/extractor/youtube/_base.py, INNERTUBE_CLIENTS — last synced
-/// 2026-07-05). When playback starts failing broadly, refreshing these
-/// versions/user-agents against yt-dlp is the first thing to try.
 class InnertubeClient {
   final String clientName;
   final String clientVersion;
@@ -33,13 +27,15 @@ class InnertubeClient {
     this.osVersion,
   });
 
-  Map<String, dynamic> toContext() => {
+  Map<String, dynamic> toContext(String visitorData) => {
     'clientName': clientName,
     'clientVersion': clientVersion,
     'userAgent': userAgent,
     'hl': 'en',
     'timeZone': 'UTC',
     'utcOffsetMinutes': 0,
+
+    'visitorData': visitorData,
     if (androidSdkVersion != null) 'androidSdkVersion': androidSdkVersion,
     if (deviceMake != null) 'deviceMake': deviceMake,
     if (deviceModel != null) 'deviceModel': deviceModel,
@@ -48,23 +44,28 @@ class InnertubeClient {
   };
 }
 
-/// Our own minimal YouTube audio extractor: talks to the innertube
-/// `/player` endpoint directly, using client definitions kept in sync with
-/// yt-dlp. Only clients that return direct (non-ciphered) stream URLs are
-/// used, so no JS player or signature deciphering is ever needed.
-///
-/// Runs before youtube_explode_dart in the resolution chain: when YouTube
-/// changes something, updating the constants above is enough — no waiting
-/// on package releases.
+class _SessionRejected implements Exception {
+  final String message;
+  const _SessionRejected(this.message);
+  @override
+  String toString() => '_SessionRejected: $message';
+}
+
+class _VisitorSession {
+  final String visitorData;
+  final List<Cookie> cookies;
+  final DateTime createdAt;
+
+  _VisitorSession(this.visitorData, this.cookies) : createdAt = DateTime.now();
+
+  bool get isStale =>
+      DateTime.now().difference(createdAt) > const Duration(hours: 3);
+}
+
 class InnertubeExtractor {
   InnertubeExtractor._();
   static final InnertubeExtractor instance = InnertubeExtractor._();
 
-  // ANDROID_VR is the only innertube client whose URLs are fully
-  // downloadable without a PO token. ANDROID and IOS URLs are PO-token-gated:
-  // they serve ~1MB (one request) and 403 everything after, so a song dies
-  // mid-play — verified empirically 2026-07-05. Do not add them back without
-  // a PO token provider; songs ANDROID_VR can't serve go to the backend relay.
   static const List<InnertubeClient> _clients = [
     InnertubeClient(
       clientName: 'ANDROID_VR',
@@ -83,40 +84,98 @@ class InnertubeExtractor {
   static final Uri _playerEndpoint = Uri.parse(
     'https://www.youtube.com/youtubei/v1/player?prettyPrint=false',
   );
+  static final Uri _warmupEndpoint = Uri.parse('https://www.youtube.com/');
+
+  static const String _warmupUserAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
   final HttpClient _http = HttpClient()
     ..connectionTimeout = const Duration(seconds: 10);
 
+  _VisitorSession? _session;
+
+  Future<_VisitorSession>? _pendingSession;
+
   Future<PlaybackInfo?> resolve(String videoId) async {
     for (final client in _clients) {
-      try {
-        final info = await _tryClient(client, videoId);
-        if (info != null) return info;
-      } catch (e) {
-        AppLogger.instance.error(
-          'Innertube ${client.clientName} failed for $videoId',
-          error: e,
-        );
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          final session = await _ensureSession(forceRefresh: attempt > 0);
+          final info = await _tryClient(client, videoId, session);
+          if (info != null) return info;
+          break;
+        } on _SessionRejected {
+          continue;
+        } catch (e) {
+          AppLogger.instance.error(
+            'Innertube ${client.clientName} failed for $videoId',
+            error: e,
+          );
+          break;
+        }
       }
     }
     return null;
   }
 
+  Future<_VisitorSession> _ensureSession({bool forceRefresh = false}) {
+    final current = _session;
+    if (!forceRefresh && current != null && !current.isStale) {
+      return Future.value(current);
+    }
+    final pending = _pendingSession;
+    if (!forceRefresh && pending != null) return pending;
+
+    final future = _warmupSession();
+    _pendingSession = future;
+    return future
+        .then((session) {
+          _session = session;
+          _pendingSession = null;
+          return session;
+        })
+        .catchError((Object e) {
+          _pendingSession = null;
+          throw e;
+        });
+  }
+
+  Future<_VisitorSession> _warmupSession() async {
+    final request = await _http.getUrl(_warmupEndpoint);
+    request.headers.set(HttpHeaders.userAgentHeader, _warmupUserAgent);
+    request.headers.set(HttpHeaders.acceptLanguageHeader, 'en-US,en;q=0.9');
+    final response = await request.close();
+    final cookies = response.cookies;
+    final body = await utf8.decodeStream(response);
+
+    final match = RegExp(r'"visitorData":"(.*?)"').firstMatch(body);
+    if (match == null) {
+      throw const _SessionRejected('visitorData missing from warmup page');
+    }
+
+    final visitorData = jsonDecode('"${match.group(1)}"') as String;
+    return _VisitorSession(visitorData, cookies);
+  }
+
   Future<PlaybackInfo?> _tryClient(
     InnertubeClient client,
     String videoId,
+    _VisitorSession session,
   ) async {
     final request = await _http.postUrl(_playerEndpoint);
     request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
     request.headers.set(HttpHeaders.userAgentHeader, client.userAgent);
     request.headers.set('X-YouTube-Client-Name', '${client.clientId}');
     request.headers.set('X-YouTube-Client-Version', client.clientVersion);
+    request.headers.set('X-Goog-Visitor-Id', session.visitorData);
     request.headers.set('Origin', 'https://www.youtube.com');
+    request.cookies.addAll(session.cookies);
     request.add(
       utf8.encode(
         jsonEncode({
           'videoId': videoId,
-          'context': {'client': client.toContext()},
+          'context': {'client': client.toContext(session.visitorData)},
           'contentCheckOk': true,
           'racyCheckOk': true,
         }),
@@ -132,7 +191,13 @@ class InnertubeExtractor {
         jsonDecode(await utf8.decodeStream(response)) as Map<String, dynamic>;
 
     final playability = json['playabilityStatus'] as Map<String, dynamic>?;
-    if (playability?['status'] != 'OK') return null;
+    final status = playability?['status'];
+    if (status != 'OK') {
+      if (status == 'LOGIN_REQUIRED') {
+        throw _SessionRejected('LOGIN_REQUIRED for $videoId');
+      }
+      return null;
+    }
 
     final formats =
         (json['streamingData'] as Map<String, dynamic>?)?['adaptiveFormats']
@@ -160,16 +225,11 @@ class InnertubeExtractor {
     return PlaybackInfo(id: videoId, playbackUrl: url, mimeType: mime);
   }
 
-  /// Two-request validation under player-identical conditions (default Dart
-  /// User-Agent, small bounded ranges). PO-token-gated URLs serve the first
-  /// request and 403 afterwards — a single probe passes them and the song
-  /// then dies mid-play, so the second probe from a later offset is what
-  /// actually catches them. Also used by StreamResolverService to vet
-  /// youtube_explode-produced URLs.
   Future<bool> urlServes(String url) => _urlServes(url);
 
   Future<bool> _urlServes(String url) async {
-    return await _probe(url, 'bytes=0-1') && await _probe(url, 'bytes=65536-65537');
+    return await _probe(url, 'bytes=0-1') &&
+        await _probe(url, 'bytes=65536-65537');
   }
 
   Future<bool> _probe(String url, String range) async {
@@ -178,7 +238,7 @@ class InnertubeExtractor {
       request.headers.set(HttpHeaders.rangeHeader, range);
       final response = await request.close();
       await response.drain<void>();
-      // 416 = requested range past EOF (very short file): not a block.
+
       return response.statusCode == 200 ||
           response.statusCode == 206 ||
           response.statusCode == 416;

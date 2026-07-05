@@ -125,7 +125,7 @@ class ApiClient {
       final clientStart = DateTime.now();
       Response response;
       try {
-        response = await _dio.get('/');
+        response = await _dio.get('/health');
       } on DioException catch (e) {
         if (e.response != null) {
           response = e.response!;

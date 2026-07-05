@@ -38,7 +38,6 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
   StreamSubscription? _songRequestAlertSub;
   StreamSubscription? _djRequestAlertSub;
 
-  // Up-next preview: controlled by timer, not live position polling.
   Timer? _upNextTimer;
   String? _upNextTimerSongId;
   Song? _upNextSong;
@@ -95,14 +94,11 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
     });
   }
 
-  // Called in build() each time. If the current song changed, cancel the old
-  // timer, immediately clear the preview (prevents "next-to-next" flash), and
-  // schedule a new timer to reveal the next song T-5s before it ends.
   void _syncUpNextTimer(RoomProvider roomRef, Song currentSong) {
     if (_upNextTimerSongId == currentSong.id) return;
     _upNextTimer?.cancel();
     _upNextTimerSongId = currentSong.id;
-    _upNextSong = null; // cleared inline — no setState needed (already in build)
+    _upNextSong = null;
 
     final leadSeconds = currentSong.duration - 5;
     if (leadSeconds <= 0) return;
@@ -193,7 +189,13 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
                         const SizedBox(height: AppSpacing.s4),
                         Center(
                           child: room.currentDj != null
-                              ? _buildDjChip(context, room, isDj, widget.roomId, roomRef)
+                              ? _buildDjChip(
+                                  context,
+                                  room,
+                                  isDj,
+                                  widget.roomId,
+                                  roomRef,
+                                )
                               : _buildNoDj(context),
                         ),
                         const SizedBox(height: AppSpacing.s5),
@@ -354,8 +356,6 @@ String _formatDuration(Duration duration) {
   return '$minutes:$seconds';
 }
 
-// Visibility is fully controlled by the caller via state (_upNextSong != null).
-// currentSong is passed only to drive the live countdown text via positionStream.
 Widget _buildUpNextOverlay(
   BuildContext context,
   Song upNextSong,
@@ -398,7 +398,8 @@ Widget _buildUpNextCard(
           seed: upNextSong.title,
           size: 40,
           radius: AppRadius.xs,
-          child: upNextSong.thumbnail != null && upNextSong.thumbnail!.isNotEmpty
+          child:
+              upNextSong.thumbnail != null && upNextSong.thumbnail!.isNotEmpty
               ? Image.network(
                   upNextSong.thumbnail!,
                   fit: BoxFit.cover,
@@ -435,8 +436,10 @@ Widget _buildUpNextCard(
                 stream: PlayerAudioService.roomHandler.positionStream,
                 builder: (context, snapshot) {
                   final duration = currentSong.duration;
-                  final elapsed =
-                      (snapshot.data?.inSeconds ?? 0).clamp(0, duration);
+                  final elapsed = (snapshot.data?.inSeconds ?? 0).clamp(
+                    0,
+                    duration,
+                  );
                   final remaining = (duration - elapsed).clamp(0, duration);
                   return Text(
                     'Playing in ${remaining}s',
@@ -552,9 +555,7 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
       duration: const Duration(milliseconds: 600),
     );
     _rotationAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
-    // Width only expands during the second half (when the back face is revealed).
-    // This way the card stays 200px while rotating to edge-on, then expands as
-    // the lyrics face comes into view.
+
     _widthFractionAnim = TweenSequence<double>([
       TweenSequenceItem(tween: ConstantTween(0.0), weight: 50),
       TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 50),
@@ -604,7 +605,8 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
               final angle = _rotationAnim.value * math.pi;
               final isFront = angle <= math.pi / 2;
               const maxLyricsWidth = 320.0;
-              final currentWidth = 200.0 +
+              final currentWidth =
+                  200.0 +
                   (math.min(fullWidth, maxLyricsWidth) - 200.0) *
                       _widthFractionAnim.value;
 
@@ -615,14 +617,12 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
                   alignment: Alignment.center,
                   transform: isFront
                       ? (Matrix4.identity()
-                        ..setEntry(3, 2, 0.001)
-                        ..rotateY(angle))
+                          ..setEntry(3, 2, 0.001)
+                          ..rotateY(angle))
                       : (Matrix4.identity()
-                        ..setEntry(3, 2, 0.001)
-                        ..rotateY(angle - math.pi)),
-                  child: isFront
-                      ? _buildFront(hasLyrics)
-                      : _buildBack(),
+                          ..setEntry(3, 2, 0.001)
+                          ..rotateY(angle - math.pi)),
+                  child: isFront ? _buildFront(hasLyrics) : _buildBack(),
                 ),
               );
             },
@@ -731,9 +731,10 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
                       (widget.room.currentSong?.duration ?? 0) * 1000;
                   final count = lyrics.lyrics.length;
                   currentIndex = songDurationMs > 0
-                      ? ((posMs / songDurationMs) * count)
-                          .floor()
-                          .clamp(0, count - 1)
+                      ? ((posMs / songDurationMs) * count).floor().clamp(
+                          0,
+                          count - 1,
+                        )
                       : 0;
                 }
 
@@ -810,7 +811,13 @@ void _showRequestBottomsheet(BuildContext context, RoomProvider ref) {
   );
 }
 
-Widget _buildDjChip(BuildContext context, Room room, bool isDj, String roomId, RoomProvider roomRef) {
+Widget _buildDjChip(
+  BuildContext context,
+  Room room,
+  bool isDj,
+  String roomId,
+  RoomProvider roomRef,
+) {
   final dj = room.currentDj!;
   final seed = dj.username ?? dj.name;
   return Row(

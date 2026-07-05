@@ -152,8 +152,6 @@ class RoomAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
   }) async {
     updateMetadata(song);
     try {
-      // Ranged source: some stream URLs 403 requests without a Range header
-      // (see RangedCachingAudioSource). No cache file — rooms play live.
       await _player.setAudioSource(
         RangedCachingAudioSource(
           Uri.parse(url),
@@ -161,13 +159,13 @@ class RoomAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
           headers: headers,
         ),
       );
-      
+
       Duration seekPos = Duration.zero;
       if (startedAt != null) {
         final serverTime = DateTime.now().add(serverTimeOffset);
         seekPos = serverTime.difference(startedAt);
       }
-      
+
       final duration = Duration(seconds: song.duration);
       final finalSeek = seekPos < duration ? seekPos : Duration.zero;
       await _player.seek(finalSeek);

@@ -3,9 +3,6 @@ class PlaybackInfo {
   final String playbackUrl;
   final String mimeType;
 
-  /// HTTP headers the player must send when fetching [playbackUrl].
-  /// Some stream URLs are bound to the User-Agent of the innertube client
-  /// that requested them and 403 without it.
   final Map<String, String>? headers;
 
   const PlaybackInfo({

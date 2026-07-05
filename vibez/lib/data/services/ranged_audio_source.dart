@@ -1,20 +1,10 @@
-// StreamAudioSource has carried the "experimental" marker for years; it is
-// the documented extension point for custom byte streams.
 // ignore_for_file: experimental_member_use
+
 import 'dart:async';
 import 'dart:io';
 
 import 'package:just_audio/just_audio.dart';
 
-/// Streams audio over HTTP using small bounded range requests.
-///
-/// googlevideo servers reject requests without a `Range` header AND reject
-/// spans above ~2MB (403). Full songs must therefore be fetched as a
-/// sequence of small bounded chunks — the same access pattern yt-dlp uses.
-///
-/// When [cacheFile] is set and the player performs a full sequential read
-/// from byte 0 (the normal play-through case), bytes are written through to
-/// disk; subsequent plays are served entirely from the file.
 class RangedCachingAudioSource extends StreamAudioSource {
   final Uri uri;
   final String contentType;
@@ -24,8 +14,6 @@ class RangedCachingAudioSource extends StreamAudioSource {
   int? _sourceLength;
   bool _writingCache = false;
 
-  /// Proven-safe span: 1MB chunks succeed where >=3MB spans and open-ended
-  /// ranges get 403 from googlevideo.
   static const int _chunkSize = 1 << 20;
 
   static final HttpClient _http = HttpClient()
@@ -56,7 +44,6 @@ class RangedCachingAudioSource extends StreamAudioSource {
       );
     }
 
-    // First chunk also tells us the total length via Content-Range.
     final first = await _fetchChunk(start, _chunkEndFor(start, end));
     var total = _sourceLength;
     final contentRange = first.headers.value(HttpHeaders.contentRangeHeader);
@@ -69,7 +56,11 @@ class RangedCachingAudioSource extends StreamAudioSource {
 
     final endExclusive = end ?? total;
     final shouldCache =
-        cache != null && start == 0 && end == null && total != null && !_writingCache;
+        cache != null &&
+        start == 0 &&
+        end == null &&
+        total != null &&
+        !_writingCache;
     if (shouldCache) _writingCache = true;
 
     return StreamAudioResponse(
@@ -87,7 +78,6 @@ class RangedCachingAudioSource extends StreamAudioSource {
     );
   }
 
-  /// Inclusive end byte for a chunk starting at [from].
   int _chunkEndFor(int from, int? endExclusive) {
     var to = from + _chunkSize - 1;
     if (endExclusive != null && to > endExclusive - 1) to = endExclusive - 1;
@@ -111,11 +101,6 @@ class RangedCachingAudioSource extends StreamAudioSource {
     return response;
   }
 
-  /// Emits [first] and then keeps fetching subsequent chunks until
-  /// [endExclusive] (or [total]) is reached. When [cacheTarget] is set, all
-  /// bytes are written to `<cacheTarget>.part`, which is renamed to the real
-  /// file only if the full length was written — a cancelled or failed
-  /// download can never be mistaken for a cached song.
   Stream<List<int>> _chunkedStream(
     HttpClientResponse first,
     int start,
@@ -123,8 +108,9 @@ class RangedCachingAudioSource extends StreamAudioSource {
     File? cacheTarget,
     int? total,
   ) async* {
-    final partFile =
-        cacheTarget != null ? File('${cacheTarget.path}.part') : null;
+    final partFile = cacheTarget != null
+        ? File('${cacheTarget.path}.part')
+        : null;
     IOSink? sink;
     var written = 0;
     var completed = false;

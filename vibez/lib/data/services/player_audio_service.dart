@@ -19,8 +19,6 @@ class PlayerAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
   bool _retrying = false;
   DateTime _lastPositionSave = DateTime.fromMillisecondsSinceEpoch(0);
 
-  // Cap automatic retries per song: an unplayable track must not turn into
-  // an infinite resolve/fail loop that hammers YouTube from the user's IP.
   String? _lastErrorSongId;
   int _errorCount = 0;
   static const int _maxRetriesPerSong = 2;
@@ -232,11 +230,6 @@ class PlayerAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
     mediaItem.add(metadata);
   }
 
-  /// Sets the audio source. All network fetches go through
-  /// [RangedCachingAudioSource]: googlevideo URLs from some clients 403 any
-  /// request without a Range header, which is what ExoPlayer's direct open
-  /// and LockCachingAudioSource both send. Downloads are cached to disk
-  /// keyed by song id so replays are served locally.
   Future<void> _setAudioSource(
     Song song,
     String url,
@@ -274,7 +267,6 @@ class PlayerAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
     try {
       await _setAudioSource(song, url, headers, mimeType);
       if (song.id != _lastErrorSongId) {
-        // New song loaded cleanly: previous failure streak is over.
         _lastErrorSongId = null;
         _errorCount = 0;
       }
@@ -316,7 +308,8 @@ class PlayerAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
   Stream<Duration> get bufferedPositionStream => _player.bufferedPositionStream;
 }
 
-class SwitchingAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
+class SwitchingAudioHandler extends audio.BaseAudioHandler
+    with audio.SeekHandler {
   final PlayerAudioHandler playerHandler;
   final RoomAudioHandler roomHandler;
   bool _useRoom = false;
@@ -356,7 +349,8 @@ class SwitchingAudioHandler extends audio.BaseAudioHandler with audio.SeekHandle
     }
   }
 
-  audio.AudioHandler get _activeHandler => _useRoom ? roomHandler : playerHandler;
+  audio.AudioHandler get _activeHandler =>
+      _useRoom ? roomHandler : playerHandler;
 
   @override
   Future<void> play() => _activeHandler.play();
@@ -401,8 +395,6 @@ class PlayerAudioService {
   static Directory? _audioCacheDir;
   static Directory? get audioCacheDir => _audioCacheDir;
 
-  /// Deletes cached audio (including partial downloads) for a song, so a
-  /// retry after a playback error starts from a clean slate.
   static Future<void> evictAudioCacheFor(String songId) async {
     final dir = _audioCacheDir;
     if (dir == null) return;
@@ -420,8 +412,6 @@ class PlayerAudioService {
 
   static const int _maxAudioCacheBytes = 512 * 1024 * 1024;
 
-  /// Deletes least-recently-modified cached songs until the cache fits the
-  /// size cap, so the cache can never fill the disk.
   static Future<void> _trimAudioCache(Directory dir) async {
     try {
       final files = <File>[];

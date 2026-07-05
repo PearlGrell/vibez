@@ -41,10 +41,6 @@ class RoomProvider extends ChangeNotifier {
   final StreamController<User> _djRequestedController =
       StreamController<User>.broadcast();
 
-  // Fires once per new request, separate from [requestItems]/[djRequests]:
-  // ChangeNotifierProvider exposes the same mutated instance as both
-  // previous and next in ref.listen, so list-length diffing can't detect
-  // arrivals there. Consumers (e.g. in-room alerts) listen to these instead.
   Stream<RequestItem> get onSongRequested => _songRequestedController.stream;
   Stream<User> get onDjRequested => _djRequestedController.stream;
 
@@ -151,7 +147,9 @@ class RoomProvider extends ChangeNotifier {
 
       _djRequestsSub = _socket.stream('room:dj_requested').listen((data) async {
         final map = Map<String, dynamic>.from(data as Map);
-        final user = User.fromJson(Map<String, dynamic>.from(map['user'] as Map));
+        final user = User.fromJson(
+          Map<String, dynamic>.from(map['user'] as Map),
+        );
         if (djRequests.any((u) => u.id == user.id)) return;
         djRequests.add(user);
         _djRequestedController.add(user);
@@ -232,9 +230,7 @@ class RoomProvider extends ChangeNotifier {
   }
 
   Future<void> requestDj() async {
-    await _socket.emitWithAck('room:request_dj', {
-      'roomId': roomId,
-    });
+    await _socket.emitWithAck('room:request_dj', {'roomId': roomId});
   }
 
   Future<void> songChanged(String songId) async {

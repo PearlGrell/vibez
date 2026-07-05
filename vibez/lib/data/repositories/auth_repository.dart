@@ -72,7 +72,10 @@ class AuthRepository {
     }
   }
 
-  Future<String?> verifyOtp({required String email, required String otp}) async {
+  Future<String?> verifyOtp({
+    required String email,
+    required String otp,
+  }) async {
     try {
       final res = await _authService.verifyOtp(email: email, otp: otp);
       return res['resetToken'] as String?;
@@ -83,9 +86,15 @@ class AuthRepository {
     }
   }
 
-  Future<bool> resetPassword({required String resetToken, required String password}) async {
+  Future<bool> resetPassword({
+    required String resetToken,
+    required String password,
+  }) async {
     try {
-      await _authService.resetPassword(resetToken: resetToken, password: password);
+      await _authService.resetPassword(
+        resetToken: resetToken,
+        password: password,
+      );
       return true;
     } on DioException catch (err) {
       String errorMessage = DioExceptionHandler.getMessage(err);
@@ -98,9 +107,6 @@ class AuthRepository {
     await _tokenStorage.clear();
   }
 
-  // Awaited so the new auth token is on the socket before callers (e.g. login
-  // screens) navigate into screens that immediately depend on it; failures
-  // are logged instead of surfaced since the REST auth already succeeded.
   Future<void> _reconnectSocket() async {
     try {
       await SocketClient.instance.reconnect();

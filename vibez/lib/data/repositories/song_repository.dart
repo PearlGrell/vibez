@@ -33,11 +33,6 @@ class SongRepository {
   }
 
   Future<PlaybackInfo?> getPlaybackUrl(String id) async {
-    // Resolved on-device first: stream URLs are IP-bound, so a URL extracted
-    // by the backend can never play here directly (403). If local resolution
-    // fails (bot-flagged network, restricted video), fall back to the backend
-    // relay endpoint, which streams the audio bytes through the server —
-    // the only server-side approach that survives IP binding.
     final local = await StreamResolverService.instance.resolve(id);
     if (local != null) return local;
 

@@ -14,6 +14,7 @@ class SocketClient {
   final TokenStorage _tokenStorage = TokenStorage.instance;
 
   late ws.Socket _socket;
+  bool _built = false;
 
   String _resolveUrl(String url) {
     if (Platform.isAndroid && url.contains('localhost')) {
@@ -22,19 +23,30 @@ class SocketClient {
     return url;
   }
 
-  Future<void> initialize() async {
+  ws.Socket _build(String? accessToken) => ws.io(
+    _resolveUrl(dotenv.get('API_URL', fallback: 'http://localhost:3000')),
+    ws.OptionBuilder()
+        .setTransports(['websocket'])
+        .setAuth({'token': accessToken})
+        .disableAutoConnect()
+        .enableForceNew()
+        .build(),
+  );
+
+  Future<void> _setup() async {
+    if (_built) {
+      try {
+        _socket.dispose();
+      } catch (_) {}
+    }
+
     final accessToken = await _tokenStorage.accessToken;
-    _socket = ws.io(
-      _resolveUrl(dotenv.get('API_URL', fallback: 'http://localhost:3000')),
-      ws.OptionBuilder()
-          .setTransports(['websocket'])
-          .setAuth({'token': accessToken})
-          .disableAutoConnect()
-          .build(),
-    );
+    _socket = _build(accessToken);
+    _built = true;
+
+    if (accessToken == null || accessToken.isEmpty) return;
 
     final completer = Completer<void>();
-
     _socket.onConnect((_) {
       if (!completer.isCompleted) completer.complete();
     });
@@ -51,41 +63,12 @@ class SocketClient {
     );
   }
 
+  Future<void> initialize() => _setup();
+
+  Future<void> reconnect() => _setup();
+
   void connect() => _socket.connect();
   void disconnect() => _socket.disconnect();
-
-  Future<void> reconnect() async {
-    _socket.disconnect();
-    _socket.dispose();
-
-    final accessToken = await _tokenStorage.accessToken;
-
-    _socket = ws.io(
-      _resolveUrl(dotenv.get('API_URL')),
-      ws.OptionBuilder()
-          .setTransports(['websocket'])
-          .setAuth({'token': accessToken})
-          .disableAutoConnect()
-          .build(),
-    );
-
-    final completer = Completer<void>();
-
-    _socket.onConnect((_) {
-      if (!completer.isCompleted) completer.complete();
-    });
-    _socket.onConnectError((err) {
-      debugPrint('Socket reconnect error: $err');
-      if (!completer.isCompleted) completer.completeError(err);
-    });
-
-    _socket.connect();
-
-    return completer.future.timeout(
-      const Duration(seconds: 10),
-      onTimeout: () => throw TimeoutException('Socket connection timed out'),
-    );
-  }
 
   void emit(String event, [dynamic data]) => _socket.emit(event, data);
 
@@ -93,11 +76,15 @@ class SocketClient {
     final completer = Completer<dynamic>();
     final effectiveTimeout = timeout ?? const Duration(seconds: 10);
 
-    _socket.emitWithAck(event, data, ack: (dynamic response) {
-      if (!completer.isCompleted) {
-        completer.complete(response);
-      }
-    });
+    _socket.emitWithAck(
+      event,
+      data,
+      ack: (dynamic response) {
+        if (!completer.isCompleted) {
+          completer.complete(response);
+        }
+      },
+    );
 
     return completer.future.timeout(
       effectiveTimeout,
@@ -112,11 +99,11 @@ class SocketClient {
   void off(String event, [Function(dynamic)? callback]) =>
       _socket.off(event, callback);
 
-  Stream<T> stream<T>(String event){
+  Stream<T> stream<T>(String event) {
     late StreamController<T> controller;
 
     void listener(dynamic data) {
-      controller.add(data as T);
+      if (!controller.isClosed) controller.add(data as T);
     }
 
     controller = StreamController<T>.broadcast(
@@ -124,7 +111,7 @@ class SocketClient {
       onCancel: () {
         _socket.off(event, listener);
         controller.close();
-      }
+      },
     );
     return controller.stream;
   }
@@ -132,15 +119,30 @@ class SocketClient {
   Stream<bool> connectionStream() {
     late StreamController<bool> controller;
 
+    // Named handlers so they can be detached on cancel. Guard every add: a
+    // socket rebuilt by _setup() (or one closing during teardown) can still
+    // fire these on the old instance after the controller has been closed,
+    // which otherwise throws "Cannot add new events after calling close".
+    void onConnect(dynamic _) {
+      if (!controller.isClosed) controller.add(true);
+    }
+
+    void onDown(dynamic _) {
+      if (!controller.isClosed) controller.add(false);
+    }
+
     controller = StreamController<bool>.broadcast(
       onListen: () {
-        _socket.onConnect((_) => controller.add(true));
-        _socket.onDisconnect((_) => controller.add(false));
-        _socket.onConnectError((_) => controller.add(false));
+        _socket.onConnect(onConnect);
+        _socket.onDisconnect(onDown);
+        _socket.onConnectError(onDown);
       },
       onCancel: () {
+        _socket.off('connect', onConnect);
+        _socket.off('disconnect', onDown);
+        _socket.off('connect_error', onDown);
         controller.close();
-      }
+      },
     );
     return controller.stream;
   }

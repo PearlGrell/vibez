@@ -96,7 +96,10 @@ class AuthInterceptor extends Interceptor {
   Future<String?> _refreshToken() async {
     final response = await _refreshDio.post('/auth/refresh');
 
-    final accessToken = response.data['accessToken'] as String?;
+    // The API returns the access token under `token` (same shape as
+    // /auth/login and /auth/register), NOT `accessToken`. Reading the wrong
+    // key made every refresh look like a failure and forced a logout.
+    final accessToken = response.data['token'] as String?;
 
     if (accessToken == null) {
       return null;

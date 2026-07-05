@@ -103,8 +103,6 @@ class PlaybackProvider extends Notifier<PlaybackState> {
   final _random = Random();
   bool _playingFromCollection = false;
 
-  // Set on app start from persisted state; consumed by the first _loadAndPlay
-  // so the restored song resumes where the user left off.
   Duration? _resumePosition;
   String? _resumeSongId;
 
@@ -114,8 +112,6 @@ class PlaybackProvider extends Notifier<PlaybackState> {
   }
 
   void play() {
-    // After a restart the song is restored but no source is loaded yet:
-    // load it (and resume position) instead of playing into the void.
     if (state.playbackInfo == null && state.currentSong != null) {
       state = state.copyWith(playing: true);
       retryCurrentSong();
@@ -472,13 +468,8 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     }
   }
 
-  /// Called by the audio handler when a song keeps failing after the retry
-  /// cap: stop retrying, surface the error state, and stay paused.
   void markPlaybackFailed() {
-    state = state.copyWith(
-      playing: false,
-      playbackLoadState: LoadState.error,
-    );
+    state = state.copyWith(playing: false, playbackLoadState: LoadState.error);
   }
 
   Future<void> retryCurrentSong() async {
@@ -563,9 +554,6 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     } catch (_) {}
   }
 
-  /// Resolves the upcoming song's stream URL ahead of time so skips and
-  /// auto-advance start instantly. The cache dedupes in-flight requests and
-  /// keeps entries for 30 minutes, well within stream URL validity.
   void _prefetchNextSong() {
     final next = state.queue.isNotEmpty
         ? state.queue.first
