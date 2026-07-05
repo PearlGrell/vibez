@@ -24,10 +24,11 @@ class SongService:
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        # Innertube clients skip the youtube.com watch page, where datacenter
-        # IPs get bot-checked first. Bot checks are per video AND per client,
-        # so list several: yt-dlp falls through to the next on failure.
-        "extractor_args": {"youtube": {"player_client": ["android_vr", "android", "tv"]}},
+        # android_vr is the only client that reliably returns downloadable
+        # audio-only formats (web/tv/ios return none or DRM-only); android is
+        # a combined-format fallback. Cookies (below) flow to these at the HTTP
+        # layer and bypass the datacenter bot wall.
+        "extractor_args": {"youtube": {"player_client": ["android_vr", "android"]}},
     }
     
     def __init__(self):
@@ -164,13 +165,11 @@ class SongService:
         opts = dict(SongService.YDL_OPTS)
         cookiefile = SongService._cookie_path()
         if cookiefile:
-            # A logged-in session bypasses the datacenter "confirm you're not a
-            # bot" wall AND satisfies PO-token gating, so authenticated web URLs
-            # download fully. Let yt-dlp use its default (web) clients, which is
-            # what actually consumes cookies — the anonymous android_vr set does
-            # not, so drop the restriction when cookies are present.
+            # Cookies bypass the datacenter "confirm you're not a bot" wall.
+            # Keep the android_vr client (it returns downloadable audio) — the
+            # cookies are sent at the HTTP layer regardless of client, so we do
+            # NOT switch to web clients (they return no usable formats).
             opts["cookiefile"] = cookiefile
-            opts.pop("extractor_args", None)
         if proxy:
             opts["proxy"] = proxy
         return opts
