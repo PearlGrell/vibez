@@ -21,6 +21,9 @@ services:
       # File named cookies.txt (Settings > Secret Files) — it mounts here.
       - key: COOKIES_FILE
         value: /etc/secrets/cookies.txt
+      # Autopinger to keep the free tier service from sleeping (pings public /api/health)
+      - key: SELF_PING_URL
+        value: https://vibez-backend.onrender.com/api/health
       # Filled in via the Render dashboard on deploy (not stored in git).
       - key: PGHOST
         sync: false

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +32,12 @@ class PlaybackState {
 
   final LoadState playbackLoadState;
 
+  // Sleep timer: [sleepTimerEnd] is the wall-clock instant playback will pause
+  // (drives the countdown); [sleepAfterTrack] pauses when the current track
+  // ends instead. At most one is active.
+  final DateTime? sleepTimerEnd;
+  final bool sleepAfterTrack;
+
   const PlaybackState({
     this.currentSong,
     this.playbackInfo,
@@ -45,7 +52,11 @@ class PlaybackState {
     this.recentlyPlayed = const [],
     this.recentItems = const [],
     this.playbackLoadState = LoadState.idle,
+    this.sleepTimerEnd,
+    this.sleepAfterTrack = false,
   });
+
+  bool get sleepTimerActive => sleepTimerEnd != null || sleepAfterTrack;
 
   PlaybackState copyWith({
     Song? currentSong,
@@ -64,6 +75,9 @@ class PlaybackState {
     LoadState? playbackLoadState,
     bool clearCurrentSong = false,
     bool clearPlaybackInfo = false,
+    DateTime? sleepTimerEnd,
+    bool? sleepAfterTrack,
+    bool clearSleepTimer = false,
   }) {
     return PlaybackState(
       currentSong: clearCurrentSong ? null : (currentSong ?? this.currentSong),
@@ -85,6 +99,12 @@ class PlaybackState {
       playbackLoadState: clearCurrentSong
           ? LoadState.idle
           : (playbackLoadState ?? this.playbackLoadState),
+      sleepTimerEnd: clearSleepTimer
+          ? null
+          : (sleepTimerEnd ?? this.sleepTimerEnd),
+      sleepAfterTrack: clearSleepTimer
+          ? false
+          : (sleepAfterTrack ?? this.sleepAfterTrack),
     );
   }
 
@@ -176,7 +196,48 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     }
   }
 
+  // ---- Sleep timer ----
+
+  Timer? _sleepTimer;
+
+  /// Pauses playback after [duration]. Replaces any existing timer.
+  void setSleepTimer(Duration duration) {
+    _sleepTimer?.cancel();
+    _sleepTimer = Timer(duration, _onSleepFired);
+    state = state.copyWith(
+      sleepTimerEnd: DateTime.now().add(duration),
+      sleepAfterTrack: false,
+    );
+  }
+
+  /// Pauses playback when the current track finishes (handled in [playNext]).
+  void setSleepAtEndOfTrack() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    state = state.copyWith(clearSleepTimer: true, sleepAfterTrack: true);
+  }
+
+  void cancelSleepTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    state = state.copyWith(clearSleepTimer: true);
+  }
+
+  void _onSleepFired() {
+    _sleepTimer = null;
+    state = state.copyWith(clearSleepTimer: true);
+    pause();
+  }
+
   Future<void> playNext() async {
+    // Sleep timer set to "end of track": stop here instead of advancing.
+    if (state.sleepAfterTrack) {
+      state = state.copyWith(clearSleepTimer: true, playing: false);
+      await PlayerAudioService.handler.pause();
+      await PlayerAudioService.handler.seek(Duration.zero);
+      return;
+    }
+
     if (state.repeatMode == RepeatMode.one && state.currentSong != null) {
       await _loadAndPlay(state.currentSong!);
       return;

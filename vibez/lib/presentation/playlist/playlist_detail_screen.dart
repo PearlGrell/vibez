@@ -39,7 +39,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }
 
   Future<void> _fetchPlaylist() async {
-    if (widget.playlistId == 'liked-songs') {
+    // Virtual playlists ('liked-songs', 'history') have no server record —
+    // they render from local/provider state, so there is nothing to fetch.
+    if (widget.playlistId == 'liked-songs' || widget.playlistId == 'history') {
       return;
     }
     setState(() {
@@ -99,22 +101,31 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   Widget build(BuildContext context) {
     final userState = ref.watch(userProvider);
     final isLikedSongs = widget.playlistId == 'liked-songs';
+    final isHistory = widget.playlistId == 'history';
+    final isVirtual = isLikedSongs || isHistory;
+    final playback = ref.watch(playbackProvider);
 
-    final String playlistName = isLikedSongs
+    final String playlistName = isHistory
+        ? "History"
+        : isLikedSongs
         ? "Liked Songs"
         : (_playlist?.name ?? "");
-    final String description = isLikedSongs
+    final String description = isHistory
+        ? "The last songs you played."
+        : isLikedSongs
         ? "Everything you've hearted."
         : (_playlist?.description ?? _playlist?.tags.join(', ') ?? "");
-    final List<Song> songs = isLikedSongs
+    final List<Song> songs = isHistory
+        ? playback.recentlyPlayed
+        : isLikedSongs
         ? (userState?.likedSongs ?? [])
         : (_playlist?.songs ?? []);
-    final bool isOwnerPlaylist = !isLikedSongs && _playlist?.createdById == userState?.id;
-    final String creatorName = isLikedSongs || isOwnerPlaylist
+    final bool isOwnerPlaylist = !isVirtual && _playlist?.createdById == userState?.id;
+    final String creatorName = isVirtual || isOwnerPlaylist
         ? "you"
         : (_playlist?.createdBy?.name ?? "Unknown");
 
-    final String? profileUrl = isLikedSongs || isOwnerPlaylist
+    final String? profileUrl = isVirtual || isOwnerPlaylist
         ? userState?.profileUrl
         : _playlist?.createdBy?.profileUrl;
     final String creatorNameToShow = creatorName;
@@ -132,7 +143,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       return const DetailsSkeleton(isArtist: false);
     }
 
-    if (_errorMessage != null && !isLikedSongs) {
+    if (_errorMessage != null && !isVirtual) {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
@@ -158,7 +169,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       );
     }
 
-    final isOwner = !isLikedSongs && _playlist?.createdById == userState?.id;
+    final isOwner = !isVirtual && _playlist?.createdById == userState?.id;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -202,7 +213,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               },
             ),
             actions: [
-              if (!isLikedSongs && _playlist?.createdById == userState?.id)
+              if (!isVirtual && _playlist?.createdById == userState?.id)
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: CircleAvatar(
@@ -232,21 +243,26 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 children: [
                   const SizedBox(height: 16),
 
-                  isLikedSongs
+                  isVirtual
                       ? Container(
                           height: 180,
                           width: 180,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFEC4899), Color(0xFF8B5CF6)],
+                            gradient: LinearGradient(
+                              colors: isHistory
+                                  ? const [Color(0xFF6366F1), Color(0xFF06B6D4)]
+                                  : const [
+                                      Color(0xFFEC4899),
+                                      Color(0xFF8B5CF6),
+                                    ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: AppRadius.smBorderRadius,
                           ),
                           alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.favorite,
+                          child: Icon(
+                            isHistory ? Icons.history_rounded : Icons.favorite,
                             size: 80,
                             color: Colors.white,
                           ),
@@ -336,7 +352,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () {
-                          if (!isLikedSongs && !isOwnerPlaylist && _playlist?.createdBy != null) {
+                          if (!isVirtual && !isOwnerPlaylist && _playlist?.createdBy != null) {
                             context.push('/user/${_playlist!.createdBy!.id}');
                           }
                         },
@@ -349,7 +365,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           ),
                         ),
                       ),
-                      if (!isLikedSongs) ...[
+                      if (!isVirtual) ...[
                         const SizedBox(width: 6),
                         Icon(
                           _playlist?.private == true
@@ -390,7 +406,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           );
                         },
                       ),
-                      if (!isLikedSongs && !isOwner && _playlist != null)
+                      if (!isVirtual && !isOwner && _playlist != null)
                         Builder(builder: (context) {
                           final isLiked = userState?.likedPlaylists?.any(
                                 (p) => p.id == _playlist!.id,
@@ -453,11 +469,18 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             ),
           ),
           songs.isEmpty
-              ? const SliverFillRemaining(
+              ? SliverFillRemaining(
                   child: Center(
                     child: Text(
-                      "No songs in this playlist yet.",
-                      style: TextStyle(color: AppColors.text3, fontSize: 15),
+                      isHistory
+                          ? "Nothing played yet. Your history will show up here."
+                          : isLikedSongs
+                          ? "No liked songs yet."
+                          : "No songs in this playlist yet.",
+                      style: const TextStyle(
+                        color: AppColors.text3,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
                 )

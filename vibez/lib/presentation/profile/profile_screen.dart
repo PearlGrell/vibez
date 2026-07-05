@@ -5,6 +5,7 @@ import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/data/provider/user_provider.dart';
+import 'package:vibez/data/provider/playback_provider.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/data/models/user.dart';
 
@@ -371,6 +372,7 @@ enum LibraryFilter { all, playlists, albums, artists, rooms }
 
 enum LibraryItemType {
   likedSongs,
+  history,
   playlist,
   album,
   artist,
@@ -419,6 +421,14 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
         subtitle: '${profile.likedSongs?.length ?? 0} songs',
         type: LibraryItemType.likedSongs,
         onTap: () => context.push('/playlist/liked-songs'),
+      ),
+      LibraryItem(
+        id: 'history',
+        title: 'History',
+        subtitle:
+            '${ref.watch(playbackProvider).recentlyPlayed.length} songs',
+        type: LibraryItemType.history,
+        onTap: () => context.push('/playlist/history'),
       ),
       if (profile.playlists != null)
         ...profile.playlists!.map(
@@ -497,7 +507,8 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
           return true;
         case LibraryFilter.playlists:
           return item.type == LibraryItemType.playlist ||
-              item.type == LibraryItemType.likedSongs;
+              item.type == LibraryItemType.likedSongs ||
+              item.type == LibraryItemType.history;
         case LibraryFilter.albums:
           return item.type == LibraryItemType.album;
         case LibraryFilter.artists:
@@ -726,13 +737,17 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
   }
 
   Widget _buildImage(LibraryItem item, {double? size}) {
-    if (item.type == LibraryItemType.likedSongs) {
+    if (item.type == LibraryItemType.likedSongs ||
+        item.type == LibraryItemType.history) {
+      final isHistory = item.type == LibraryItemType.history;
       return Container(
         width: size ?? 64,
         height: size ?? 64,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFEC4899), Color(0xFF8B5CF6)],
+          gradient: LinearGradient(
+            colors: isHistory
+                ? const [Color(0xFF6366F1), Color(0xFF06B6D4)]
+                : const [Color(0xFFEC4899), Color(0xFF8B5CF6)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -750,7 +765,7 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
               : null,
         ),
         child: Icon(
-          Icons.favorite,
+          isHistory ? Icons.history_rounded : Icons.favorite,
           color: Colors.white,
           size: size != null ? 48 : 28,
         ),

@@ -23,6 +23,20 @@ async function bootstrap() {
   app.use(cookieParser());
   await app.listen(process.env.PORT ?? 3000, () => {
     console.log(`Listening on PORT: ${process.env.PORT}`);
+
+    const selfPingUrl = process.env.SELF_PING_URL;
+    if (selfPingUrl) {
+      console.log(`Autopinger: active, pinging ${selfPingUrl} every 10 minutes.`);
+      setInterval(() => {
+        fetch(selfPingUrl)
+          .then((res) => {
+            console.log(`Autopinger: successfully pinged ${selfPingUrl} (status: ${res.status})`);
+          })
+          .catch((err) => {
+            console.error(`Autopinger error pinging ${selfPingUrl}:`, err);
+          });
+      }, 10 * 60 * 1000);
+    }
   });
 }
 bootstrap();

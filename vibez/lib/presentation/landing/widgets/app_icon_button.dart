@@ -6,12 +6,14 @@ class AppIconButton extends StatelessWidget {
   final VoidCallback onTap;
   final double iconSize;
   final VoidCallback? onLongPress;
+  final Color? iconColor;
   const AppIconButton({
     super.key,
     required this.icon,
     required this.onTap,
     this.onLongPress,
     this.iconSize = 24,
+    this.iconColor,
   });
 
   @override
@@ -30,7 +32,7 @@ class AppIconButton extends StatelessWidget {
             onLongPress:onLongPress,
             onTap: onTap,
             behavior: .opaque,
-            child: Icon(icon, color: AppColors.text2, size: iconSize),
+            child: Icon(icon, color: iconColor ?? AppColors.text2, size: iconSize),
           ),
         ),
       ),

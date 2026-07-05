@@ -15,7 +15,10 @@ export const envSchema = z
     JWT_SECRET: z.string().min(1),
     JWT_EXPIRES_IN: z.string(),
   })
-  .required();
+  .required()
+  .extend({
+    SELF_PING_URL: z.string().url().optional(),
+  });
 
 export type Env = z.infer<typeof envSchema>;
 

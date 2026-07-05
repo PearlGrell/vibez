@@ -20,6 +20,7 @@ import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
 import 'package:vibez/presentation/player/credits_screen.dart';
 import 'package:vibez/presentation/player/lyrics_screen.dart';
 import 'package:vibez/presentation/player/queue_screen.dart';
+import 'package:vibez/presentation/player/widgets/sleep_timer_sheet.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
@@ -334,6 +335,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ),
                 ),
           actions: [
+            AppIconButton(
+              icon: queue.sleepTimerActive
+                  ? Icons.bedtime_rounded
+                  : Icons.bedtime_outlined,
+              iconColor: queue.sleepTimerActive ? AppColors.primary : null,
+              onTap: () => showSleepTimerSheet(context),
+            ),
             AppIconButton(
               icon: Icons.queue_music_outlined,
               onTap: () {
