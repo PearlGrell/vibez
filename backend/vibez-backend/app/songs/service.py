@@ -6,15 +6,21 @@ from generated import song_pb2
 from cachetools import TTLCache
 
 import os
+import shutil
 import time
 from urllib.parse import urlparse, parse_qs
 from yt_dlp.utils import DownloadError
 
+# yt-dlp rewrites the cookie file on close to persist refreshed session
+# cookies. Render/HF mount secret files read-only, so point yt-dlp at a
+# writable copy (re-seeded from the secret each boot).
+_WRITABLE_COOKIES = "/tmp/vibez_cookies.txt"
+
 class SongService:
-    URL_SAFETY_MARGIN = 300 
+    URL_SAFETY_MARGIN = 300
 
     YDL_OPTS = {
-        "format": "bestaudio",
+        "format": "bestaudio/best",
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
@@ -142,10 +148,22 @@ class SongService:
             return 0
 
     @staticmethod
+    def _cookie_path():
+        src = os.environ.get("COOKIES_FILE")
+        if not src or not os.path.exists(src):
+            return None
+        try:
+            if not os.path.exists(_WRITABLE_COOKIES):
+                shutil.copyfile(src, _WRITABLE_COOKIES)
+            return _WRITABLE_COOKIES
+        except Exception:
+            return None
+
+    @staticmethod
     def _build_opts(proxy=None):
         opts = dict(SongService.YDL_OPTS)
-        cookiefile = os.environ.get("COOKIES_FILE")
-        if cookiefile and os.path.exists(cookiefile):
+        cookiefile = SongService._cookie_path()
+        if cookiefile:
             # A logged-in session bypasses the datacenter "confirm you're not a
             # bot" wall AND satisfies PO-token gating, so authenticated web URLs
             # download fully. Let yt-dlp use its default (web) clients, which is
