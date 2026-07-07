@@ -3,8 +3,8 @@
 -keep class io.flutter.plugins.** { *; }
 -dontwarn io.flutter.embedding.**
 
-# audio_service — MediaBrowserService & notification
--keep class com.ryanheise.audioservice.** { *; }
+# audio_service, just_audio, audio_session
+-keep class com.ryanheise.** { *; }
 
 # just_audio — ExoPlayer internals accessed via reflection
 -keep class com.google.android.exoplayer2.** { *; }
