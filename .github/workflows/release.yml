@@ -16,6 +16,7 @@ jobs:
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
       version: ${{ steps.check.outputs.version }}
+      changelog: ${{ steps.check.outputs.changelog }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -45,6 +46,19 @@ jobs:
             echo "Version bumped from '$prev_version' to '$version'."
             echo "should_release=true" >> $GITHUB_OUTPUT
             echo "version=$version" >> $GITHUB_OUTPUT
+
+            # Generate changelog from git commits in this push
+            if git show HEAD~1 >/dev/null 2>&1; then
+              log=$(git log --format="* %s (%h)" HEAD~1..HEAD)
+            else
+              log="* Initial release build"
+            fi
+            
+            # Write multiline changelog to output
+            EOF=$(dd if=/dev/urandom bs=15 count=1 2>/dev/null | base64)
+            echo "changelog<<$EOF" >> $GITHUB_OUTPUT
+            echo "$log" >> $GITHUB_OUTPUT
+            echo "$EOF" >> $GITHUB_OUTPUT
           fi
 
   build-and-release:
@@ -93,11 +107,14 @@ jobs:
           body: |
             Release build for version ${{ needs.check-version.outputs.version }}.
 
+            ### Changelog:
+            ${{ needs.check-version.outputs.changelog }}
+
             **Commit:** ${{ github.sha }}
-            **Message:** ${{ github.event.head_commit.message }}
             **Timestamp:** ${{ github.event.head_commit.timestamp }}
           draft: false
           prerelease: false
+          generate_release_notes: true
           files: vibez/build/app/outputs/flutter-apk/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
