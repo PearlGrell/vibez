@@ -23,6 +23,8 @@ import 'package:vibez/data/repositories/song_repository.dart';
 import 'package:vibez/data/services/player_audio_service.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
+import 'package:vibez/presentation/common/album_art_glow.dart';
+import 'package:vibez/core/utils/thumbnail.dart';
 import 'package:vibez/presentation/common/equalizer_bars.dart';
 import 'package:vibez/presentation/common/skeleton.dart';
 import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
@@ -652,10 +654,16 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
 
   Widget _buildFront(bool hasLyrics) {
     final song = widget.room.currentSong;
-    final hasCover = song?.thumbnail != null && song!.thumbnail!.isNotEmpty;
+    final thumb = song?.thumbnail;
+    final hasCover = thumb != null && thumb.isNotEmpty;
+    final cover = hasCover ? hiResThumbnail(thumb) : null;
 
     return Center(
-      child: SizedBox(
+      child: AlbumArtGlow(
+        imageUrl: cover,
+        radius: 16,
+        playing: widget.room.playing,
+        child: SizedBox(
         width: 200,
         height: 200,
         child: Stack(
@@ -663,9 +671,9 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
             AlbumArtCover(
               seed: song?.title ?? widget.room.name,
               size: 200,
-              child: hasCover
+              child: cover != null
                   ? Image.network(
-                      song.thumbnail!,
+                      cover,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     )
@@ -710,6 +718,7 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
                 ),
               ),
           ],
+        ),
         ),
       ),
     );
@@ -817,6 +826,7 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
 void _showRequestBottomsheet(BuildContext context, RoomProvider ref) {
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     builder: (context) {
       return _RequestSheet(
         roomId: ref.roomId,

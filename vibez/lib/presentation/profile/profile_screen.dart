@@ -6,6 +6,7 @@ import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
+import 'package:vibez/data/provider/downloads_provider.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
 import 'package:vibez/core/utils/share_util.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
@@ -399,6 +400,7 @@ enum LibraryFilter { all, playlists, albums, artists, rooms }
 enum LibraryItemType {
   likedSongs,
   history,
+  downloads,
   playlist,
   album,
   artist,
@@ -441,21 +443,31 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
     final profile = widget.profile;
 
     final items = <LibraryItem>[
-      LibraryItem(
-        id: 'liked-songs',
-        title: 'Liked Songs',
-        subtitle: '${profile.likedSongs?.length ?? 0} songs',
-        type: LibraryItemType.likedSongs,
-        onTap: () => context.push('/playlist/liked-songs'),
-      ),
-      LibraryItem(
-        id: 'history',
-        title: 'History',
-        subtitle:
-            '${ref.watch(playbackProvider).recentlyPlayed.length} songs',
-        type: LibraryItemType.history,
-        onTap: () => context.push('/playlist/history'),
-      ),
+      if ((profile.likedSongs?.length ?? 0) > 0)
+        LibraryItem(
+          id: 'liked-songs',
+          title: 'Liked Songs',
+          subtitle: '${profile.likedSongs?.length ?? 0} songs',
+          type: LibraryItemType.likedSongs,
+          onTap: () => context.push('/playlist/liked-songs'),
+        ),
+      if (ref.watch(playbackProvider).recentlyPlayed.isNotEmpty)
+        LibraryItem(
+          id: 'history',
+          title: 'History',
+          subtitle:
+              '${ref.watch(playbackProvider).recentlyPlayed.length} songs',
+          type: LibraryItemType.history,
+          onTap: () => context.push('/playlist/history'),
+        ),
+      if (ref.watch(downloadsProvider).songs.isNotEmpty)
+        LibraryItem(
+          id: 'downloads',
+          title: 'Downloads',
+          subtitle: '${ref.watch(downloadsProvider).songs.length} songs',
+          type: LibraryItemType.downloads,
+          onTap: () => context.push('/playlist/downloads'),
+        ),
       if (profile.playlists != null)
         ...profile.playlists!.map(
           (p) => LibraryItem(
@@ -520,7 +532,9 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
               (r) => LibraryItem(
                 id: r.id,
                 title: r.name,
-                subtitle: 'Room • ${r.createdBy?.name ?? "Unknown"}',
+                subtitle: r.createdBy?.name != null
+                    ? 'Room • ${r.createdBy!.name}'
+                    : 'Room',
                 type: LibraryItemType.followedRoom,
                 onTap: () => context.push('/room/${r.id}'),
               ),
@@ -534,7 +548,8 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
         case LibraryFilter.playlists:
           return item.type == LibraryItemType.playlist ||
               item.type == LibraryItemType.likedSongs ||
-              item.type == LibraryItemType.history;
+              item.type == LibraryItemType.history ||
+              item.type == LibraryItemType.downloads;
         case LibraryFilter.albums:
           return item.type == LibraryItemType.album;
         case LibraryFilter.artists:
@@ -764,8 +779,10 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
 
   Widget _buildImage(LibraryItem item, {double? size}) {
     if (item.type == LibraryItemType.likedSongs ||
-        item.type == LibraryItemType.history) {
+        item.type == LibraryItemType.history ||
+        item.type == LibraryItemType.downloads) {
       final isHistory = item.type == LibraryItemType.history;
+      final isDownloads = item.type == LibraryItemType.downloads;
       return Container(
         width: size ?? 64,
         height: size ?? 64,
@@ -773,6 +790,8 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
           gradient: LinearGradient(
             colors: isHistory
                 ? const [Color(0xFF6366F1), Color(0xFF06B6D4)]
+                : isDownloads
+                ? const [Color(0xFF10B981), Color(0xFF0EA5E9)]
                 : const [Color(0xFFEC4899), Color(0xFF8B5CF6)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -791,7 +810,11 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
               : null,
         ),
         child: Icon(
-          isHistory ? Icons.history_rounded : Icons.favorite,
+          isHistory
+              ? Icons.history_rounded
+              : isDownloads
+              ? Icons.download_done_rounded
+              : Icons.favorite,
           color: Colors.white,
           size: size != null ? 48 : 28,
         ),

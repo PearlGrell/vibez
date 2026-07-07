@@ -82,6 +82,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   void _showMoreSheet(BuildContext context, Song song, String artistName) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => SongOptionsBottomSheet(

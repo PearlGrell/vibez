@@ -76,6 +76,7 @@ class _MiniplayerState extends ConsumerState<Miniplayer> {
           onTap: () {
             showModalBottomSheet(
               context: context,
+              useRootNavigator: true,
               isDismissible: true,
               enableDrag: true,
               isScrollControlled: true,

@@ -39,11 +39,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     final connected = await _hasInternet();
     if (!connected) {
       AppSnackbar.show(
-        message: "Unable to connect to the internet.",
-        actionLabel: "Retry",
-        onAction: () => {_fetchMe()},
+        message: "You're offline. Your downloads are still available.",
+        actionLabel: "Open downloads",
+        onAction: () =>
+            AppRouter.instance.pushReplacement('/playlist/downloads'),
         duration: Duration(seconds: 100),
-        type: AppSnackType.warning
+        type: AppSnackType.warning,
       );
       return;
     }
@@ -68,7 +69,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
 
-    if(user != null) {
+    if (user != null) {
       ref.read(playbackProvider.notifier).loadLastPlayedSong();
     }
 

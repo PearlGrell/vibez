@@ -9,6 +9,7 @@ import 'package:vibez/data/models/currently_playing.dart';
 import 'package:vibez/data/models/recent_item.dart';
 import 'package:vibez/data/provider/song_cache_provider.dart';
 import 'package:vibez/data/services/player_audio_service.dart';
+import 'package:vibez/data/services/download_service.dart';
 
 enum RepeatMode { none, all, one }
 
@@ -32,9 +33,6 @@ class PlaybackState {
 
   final LoadState playbackLoadState;
 
-  // Sleep timer: [sleepTimerEnd] is the wall-clock instant playback will pause
-  // (drives the countdown); [sleepAfterTrack] pauses when the current track
-  // ends instead. At most one is active.
   final DateTime? sleepTimerEnd;
   final bool sleepAfterTrack;
 
@@ -189,6 +187,24 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     await _loadAndPlay(current);
   }
 
+  Future<void> playShuffledFrom(List<Song> songs, Song start) async {
+    final rest = songs.where((s) => s.id != start.id).toList()
+      ..shuffle(_random);
+    state = state.copyWith(
+      currentSong: start,
+      playing: true,
+      queue: rest,
+      originalQueue: rest,
+      autoplayQueue: const [],
+      history: const [],
+      shuffle: true,
+      clearPlaybackInfo: true,
+      playbackLoadState: LoadState.loading,
+    );
+    _playingFromCollection = true;
+    await _loadAndPlay(start);
+  }
+
   Future<void> playSongById(String songId) async {
     final song = await ref.read(songCacheProvider.notifier).fetchSong(songId);
     if (song != null) {
@@ -196,11 +212,8 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     }
   }
 
-  // ---- Sleep timer ----
-
   Timer? _sleepTimer;
 
-  /// Pauses playback after [duration]. Replaces any existing timer.
   void setSleepTimer(Duration duration) {
     _sleepTimer?.cancel();
     _sleepTimer = Timer(duration, _onSleepFired);
@@ -210,7 +223,6 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     );
   }
 
-  /// Pauses playback when the current track finishes (handled in [playNext]).
   void setSleepAtEndOfTrack() {
     _sleepTimer?.cancel();
     _sleepTimer = null;
@@ -230,7 +242,6 @@ class PlaybackProvider extends Notifier<PlaybackState> {
   }
 
   Future<void> playNext() async {
-    // Sleep timer set to "end of track": stop here instead of advancing.
     if (state.sleepAfterTrack) {
       state = state.copyWith(clearSleepTimer: true, playing: false);
       await PlayerAudioService.handler.pause();
@@ -317,7 +328,16 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     await PlayerAudioService.handler.seek(Duration.zero);
   }
 
-  Future<void> playPrevious() async {
+  Future<void> playPrevious({bool seek = false}) async {
+    if (seek) {
+      final handler = PlayerAudioService.vibezHandler;
+      if (state.history.isEmpty ||
+          handler.position > const Duration(seconds: 3)) {
+        await handler.seek(Duration.zero);
+        return;
+      }
+    }
+
     if (state.history.isEmpty) return;
 
     final prevSong = state.history.first;
@@ -566,6 +586,22 @@ class PlaybackProvider extends Notifier<PlaybackState> {
     handler.updateMetadata(song);
     _saveCurrentSong(song);
 
+    final downloaded = DownloadService.fileFor(song.id);
+    if (downloaded != null && await downloaded.exists()) {
+      if (state.currentSong?.id != song.id) return;
+      try {
+        state = state.copyWith(
+          clearPlaybackInfo: true,
+          playbackLoadState: LoadState.success,
+        );
+        await handler.playLocalFile(song, downloaded);
+        _applyResumePosition(song, handler);
+        _loadRelatedForAutoplay(song.id);
+        _prefetchNextSong();
+        return;
+      } catch (_) {}
+    }
+
     try {
       final playbackInfo = await cache.fetchPlaybackInfo(song.id);
       if (state.currentSong?.id != song.id) return;
@@ -582,15 +618,7 @@ class PlaybackProvider extends Notifier<PlaybackState> {
           mimeType: playbackInfo.mimeType,
         );
 
-        final resume = _resumePosition;
-        if (resume != null) {
-          _resumePosition = null;
-          final resumeId = _resumeSongId;
-          _resumeSongId = null;
-          if (song.id == resumeId && resume > Duration.zero) {
-            await handler.seek(resume);
-          }
-        }
+        await _applyResumePosition(song, handler);
 
         _loadRelatedForAutoplay(song.id);
         _prefetchNextSong();
@@ -601,6 +629,20 @@ class PlaybackProvider extends Notifier<PlaybackState> {
       if (state.currentSong?.id == song.id) {
         state = state.copyWith(playbackLoadState: LoadState.error);
       }
+    }
+  }
+
+  Future<void> _applyResumePosition(
+    Song song,
+    PlayerAudioHandler handler,
+  ) async {
+    final resume = _resumePosition;
+    if (resume == null) return;
+    _resumePosition = null;
+    final resumeId = _resumeSongId;
+    _resumeSongId = null;
+    if (song.id == resumeId && resume > Duration.zero) {
+      await handler.seek(resume);
     }
   }
 

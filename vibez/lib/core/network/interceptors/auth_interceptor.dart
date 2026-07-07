@@ -84,8 +84,9 @@ class AuthInterceptor extends Interceptor {
       if (e is DioException) {
         final statusCode = e.response?.statusCode;
         final isRefresh = e.requestOptions.path.contains('/auth/refresh');
-        
-        if (statusCode == 401 || (isRefresh && (statusCode == 403 || statusCode == 400))) {
+
+        if (statusCode == 401 ||
+            (isRefresh && (statusCode == 403 || statusCode == 400))) {
           await _logout();
         }
       }
@@ -96,9 +97,6 @@ class AuthInterceptor extends Interceptor {
   Future<String?> _refreshToken() async {
     final response = await _refreshDio.post('/auth/refresh');
 
-    // The API returns the access token under `token` (same shape as
-    // /auth/login and /auth/register), NOT `accessToken`. Reading the wrong
-    // key made every refresh look like a failure and forced a logout.
     final accessToken = response.data['token'] as String?;
 
     if (accessToken == null) {

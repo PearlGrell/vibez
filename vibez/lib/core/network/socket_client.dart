@@ -119,10 +119,6 @@ class SocketClient {
   Stream<bool> connectionStream() {
     late StreamController<bool> controller;
 
-    // Named handlers so they can be detached on cancel. Guard every add: a
-    // socket rebuilt by _setup() (or one closing during teardown) can still
-    // fire these on the old instance after the controller has been closed,
-    // which otherwise throws "Cannot add new events after calling close".
     void onConnect(dynamic _) {
       if (!controller.isClosed) controller.add(true);
     }

@@ -9,6 +9,7 @@ import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/data/models/currently_playing.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
+import 'package:vibez/data/provider/downloads_provider.dart';
 import 'package:vibez/data/repositories/playlist_repository.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
 import 'package:vibez/presentation/common/song_options_bottom_sheet.dart';
@@ -40,9 +41,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }
 
   Future<void> _fetchPlaylist() async {
-    // Virtual playlists ('liked-songs', 'history') have no server record —
-    // they render from local/provider state, so there is nothing to fetch.
-    if (widget.playlistId == 'liked-songs' || widget.playlistId == 'history') {
+    const virtualIds = {'liked-songs', 'history', 'downloads'};
+    if (virtualIds.contains(widget.playlistId)) {
       return;
     }
     setState(() {
@@ -90,11 +90,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   void _showMoreSheet(BuildContext context, Song song) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => SongOptionsBottomSheet(
-        song: SearchSongHelper.fromSong(song),
-      ),
+      builder: (context) =>
+          SongOptionsBottomSheet(song: SearchSongHelper.fromSong(song)),
     );
   }
 
@@ -103,25 +103,33 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final userState = ref.watch(userProvider);
     final isLikedSongs = widget.playlistId == 'liked-songs';
     final isHistory = widget.playlistId == 'history';
-    final isVirtual = isLikedSongs || isHistory;
+    final isDownloads = widget.playlistId == 'downloads';
+    final isVirtual = isLikedSongs || isHistory || isDownloads;
     final playback = ref.watch(playbackProvider);
 
     final String playlistName = isHistory
         ? "History"
+        : isDownloads
+        ? "Downloads"
         : isLikedSongs
         ? "Liked Songs"
         : (_playlist?.name ?? "");
     final String description = isHistory
         ? "The last songs you played."
+        : isDownloads
+        ? "Saved for offline listening."
         : isLikedSongs
         ? "Everything you've hearted."
         : (_playlist?.description ?? _playlist?.tags.join(', ') ?? "");
     final List<Song> songs = isHistory
         ? playback.recentlyPlayed
+        : isDownloads
+        ? ref.watch(downloadsProvider).songs
         : isLikedSongs
         ? (userState?.likedSongs ?? [])
         : (_playlist?.songs ?? []);
-    final bool isOwnerPlaylist = !isVirtual && _playlist?.createdById == userState?.id;
+    final bool isOwnerPlaylist =
+        !isVirtual && _playlist?.createdById == userState?.id;
     final String creatorName = isVirtual || isOwnerPlaylist
         ? "you"
         : (_playlist?.createdBy?.name ?? "Unknown");
@@ -187,7 +195,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       'playlistName': playlistName,
                     },
                   );
-                  PlaylistRepository.instance.invalidateCache(widget.playlistId);
+                  PlaylistRepository.instance.invalidateCache(
+                    widget.playlistId,
+                  );
                   _fetchPlaylist();
                 },
                 child: const Icon(Icons.add, color: Colors.white),
@@ -198,429 +208,471 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         onRefresh: _fetchPlaylist,
         color: AppColors.primary,
         child: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            backgroundColor: AppColors.background,
-            elevation: 0,
-            pinned: true,
-            leading: AppIconButton(
-              icon: Icons.chevron_left,
-              onTap: () {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                } else {
-                  Navigator.pushNamed(context, '/');
-                }
-              },
-            ),
-            actions: [
-              if (!isVirtual && _playlist != null)
-                AppIconButton(
-                  icon: Icons.ios_share_rounded,
-                  iconSize: 18,
-                  onTap: () async {
-                    ShareUtil(
-                      shareMode: .playlist,
-                      id: widget.playlistId,
-                      title: playlistName,
-                      url: _playlist?.thumbnail,
-                    ).share().then((value) {
-                      if (!value) {
-                        AppSnackbar.show(
-                          message: "Failed to share",
-                          type: AppSnackType.error,
-                        );
-                      }
-                    });
-                  },
-                ),
-              if (!isVirtual && _playlist?.createdById == userState?.id)
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: CircleAvatar(
-                    backgroundColor: Colors.black45,
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.edit,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                      onPressed: () async {
-                        await context.push('/playlist-add', extra: _playlist);
-                        PlaylistRepository.instance.invalidateCache(
-                          widget.playlistId,
-                        );
-                        _fetchPlaylist();
-                      },
-                    ),
+          slivers: [
+            SliverAppBar(
+              backgroundColor: AppColors.background,
+              elevation: 0,
+              pinned: true,
+              leading: AppIconButton(
+                icon: Icons.chevron_left,
+                onTap: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushNamed(context, '/');
+                  }
+                },
+              ),
+              actions: [
+                if (!isVirtual && _playlist != null)
+                  AppIconButton(
+                    icon: Icons.ios_share_rounded,
+                    iconSize: 18,
+                    onTap: () async {
+                      ShareUtil(
+                        shareMode: .playlist,
+                        id: widget.playlistId,
+                        title: playlistName,
+                        url: _playlist?.thumbnail,
+                      ).share().then((value) {
+                        if (!value) {
+                          AppSnackbar.show(
+                            message: "Failed to share",
+                            type: AppSnackType.error,
+                          );
+                        }
+                      });
+                    },
                   ),
-                ),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-              child: Column(
-                children: [
-                  const SizedBox(height: 16),
-
-                  isVirtual
-                      ? Container(
-                          height: 180,
-                          width: 180,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: isHistory
-                                  ? const [Color(0xFF6366F1), Color(0xFF06B6D4)]
-                                  : const [
-                                      Color(0xFFEC4899),
-                                      Color(0xFF8B5CF6),
-                                    ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: AppRadius.smBorderRadius,
-                          ),
-                          alignment: Alignment.center,
-                          child: Icon(
-                            isHistory ? Icons.history_rounded : Icons.favorite,
-                            size: 80,
-                            color: Colors.white,
-                          ),
-                        )
-                      : AlbumArtCover(
-                          seed: playlistName,
-                          size: 180,
-                          radius: AppRadius.sm,
-                          child:
-                              _playlist?.thumbnail != null &&
-                                  _playlist!.thumbnail!.isNotEmpty
-                              ? Image.network(
-                                  _playlist!.thumbnail!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const SizedBox.shrink(),
-                                )
-                              : null,
+                if (!isVirtual && _playlist?.createdById == userState?.id)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.black45,
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.edit,
+                          size: 18,
+                          color: Colors.white,
                         ),
-                  const SizedBox(height: 24),
-
-                  Text(
-                    playlistName,
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.text,
+                        onPressed: () async {
+                          await context.push('/playlist-add', extra: _playlist);
+                          PlaylistRepository.instance.invalidateCache(
+                            widget.playlistId,
+                          );
+                          _fetchPlaylist();
+                        },
+                      ),
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+              ],
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 16),
 
-                  if (description.isNotEmpty)
+                    isVirtual
+                        ? Container(
+                            height: 180,
+                            width: 180,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: isHistory
+                                    ? const [
+                                        Color(0xFF6366F1),
+                                        Color(0xFF06B6D4),
+                                      ]
+                                    : isDownloads
+                                    ? const [
+                                        Color(0xFF10B981),
+                                        Color(0xFF0EA5E9),
+                                      ]
+                                    : const [
+                                        Color(0xFFEC4899),
+                                        Color(0xFF8B5CF6),
+                                      ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: AppRadius.smBorderRadius,
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              isHistory
+                                  ? Icons.history_rounded
+                                  : isDownloads
+                                  ? Icons.download_done_rounded
+                                  : Icons.favorite,
+                              size: 80,
+                              color: Colors.white,
+                            ),
+                          )
+                        : AlbumArtCover(
+                            seed: playlistName,
+                            size: 180,
+                            radius: AppRadius.sm,
+                            child:
+                                _playlist?.thumbnail != null &&
+                                    _playlist!.thumbnail!.isNotEmpty
+                                ? Image.network(
+                                    _playlist!.thumbnail!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const SizedBox.shrink(),
+                                  )
+                                : null,
+                          ),
+                    const SizedBox(height: 24),
+
                     Text(
-                      description,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: AppColors.text2),
+                      playlistName,
+                      style: Theme.of(context).textTheme.headlineLarge
+                          ?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.text,
+                          ),
                       textAlign: TextAlign.center,
                     ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 8),
 
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        height: 24,
-                        width: 24,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: profileColor,
+                    if (description.isNotEmpty)
+                      Text(
+                        description,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.text2,
                         ),
-                        clipBehavior: Clip.antiAlias,
-                        child:
-                            (profileUrl != null &&
-                                profileUrl.isNotEmpty &&
-                                !profileUrl.startsWith('default://'))
-                            ? Image.network(
-                                profileUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Center(
-                                      child: Text(
-                                        creatorNameToShow.isNotEmpty
-                                            ? creatorNameToShow[0].toUpperCase()
-                                            : '?',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
+                        textAlign: TextAlign.center,
+                      ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          height: 24,
+                          width: 24,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: profileColor,
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child:
+                              (profileUrl != null &&
+                                  profileUrl.isNotEmpty &&
+                                  !profileUrl.startsWith('default://'))
+                              ? Image.network(
+                                  profileUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Center(
+                                        child: Text(
+                                          creatorNameToShow.isNotEmpty
+                                              ? creatorNameToShow[0]
+                                                    .toUpperCase()
+                                              : '?',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
                                       ),
+                                )
+                              : Center(
+                                  child: Text(
+                                    creatorNameToShow.isNotEmpty
+                                        ? creatorNameToShow[0].toUpperCase()
+                                        : '?',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                              )
-                            : Center(
-                                child: Text(
-                                  creatorNameToShow.isNotEmpty
-                                      ? creatorNameToShow[0].toUpperCase()
-                                      : '?',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () {
-                          if (!isVirtual && !isOwnerPlaylist && _playlist?.createdBy != null) {
-                            context.push('/user/${_playlist!.createdBy!.id}');
-                          }
-                        },
-                        child: Text(
-                          creatorNameToShow,
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            if (!isVirtual &&
+                                !isOwnerPlaylist &&
+                                _playlist?.createdBy != null) {
+                              context.push('/user/${_playlist!.createdBy!.id}');
+                            }
+                          },
+                          child: Text(
+                            creatorNameToShow,
+                            style: const TextStyle(
+                              color: AppColors.text2,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        if (!isVirtual) ...[
+                          const SizedBox(width: 6),
+                          Icon(
+                            _playlist?.private == true
+                                ? Icons.lock_rounded
+                                : Icons.public_rounded,
+                            size: 14,
+                            color: _playlist?.private == true
+                                ? AppColors.text3
+                                : AppColors.success,
+                          ),
+                        ],
+                        const SizedBox(width: 8),
+                        Text(
+                          "•  ${songs.length} songs  •  ${_formatTotalDuration(songs)}",
                           style: const TextStyle(
-                            color: AppColors.text2,
-                            fontWeight: FontWeight.bold,
+                            color: AppColors.text3,
                             fontSize: 13,
                           ),
                         ),
-                      ),
-                      if (!isVirtual) ...[
-                        const SizedBox(width: 6),
-                        Icon(
-                          _playlist?.private == true
-                              ? Icons.lock_rounded
-                              : Icons.public_rounded,
-                          size: 14,
-                          color: _playlist?.private == true
-                              ? AppColors.text3
-                              : AppColors.success,
-                        ),
                       ],
-                      const SizedBox(width: 8),
-                      Text(
-                        "•  ${songs.length} songs  •  ${_formatTotalDuration(songs)}",
-                        style: const TextStyle(
-                          color: AppColors.text3,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.shuffle_rounded,
-                          color: AppColors.text2,
-                          size: 26,
-                        ),
-                        onPressed: () {
-                          ref.read(playbackProvider.notifier).toggleShuffle();
-                          AppSnackbar.show(
-                            message: "Shuffle toggled",
-                            type: AppSnackType.success,
-                          );
-                        },
-                      ),
-                      if (!isVirtual && !isOwner && _playlist != null)
-                        Builder(builder: (context) {
-                          final isLiked = userState?.likedPlaylists?.any(
-                                (p) => p.id == _playlist!.id,
-                              ) ?? false;
-                          return IconButton(
-                            icon: Icon(
-                              isLiked ? Icons.favorite : Icons.favorite_border,
-                              color: isLiked ? AppColors.danger : AppColors.text2,
-                              size: 26,
-                            ),
-                            onPressed: () {
-                              if (isLiked) {
-                                ref.read(userProvider.notifier).unlikePlaylist(_playlist!.id);
-                              } else {
-                                ref.read(userProvider.notifier).likePlaylist(_playlist!);
-                              }
-                            },
-                          );
-                        }),
-                      const Spacer(),
-                      if (songs.isNotEmpty)
-                        GestureDetector(
-                          onTap: () {
-                            ref
-                                .read(playbackProvider.notifier)
-                                .playSongsFromList(songs, 0);
-                            ref
-                                .read(playbackProvider.notifier)
-                                .setCurrentlyPlaying(
-                                  CurrentlyPlaying(
-                                    type: PlayingSourceType.playlist,
-                                    sourceId: widget.playlistId,
-                                    sourceName: playlistName,
-                                    thumbnail: _playlist?.thumbnail,
-                                  ),
-                                );
-                          },
-                          child: Container(
-                            height: 56,
-                            width: 56,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: const Icon(
-                              Icons.play_arrow_rounded,
-                              size: 32,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-          ),
-          songs.isEmpty
-              ? SliverFillRemaining(
-                  child: Center(
-                    child: Text(
-                      isHistory
-                          ? "Nothing played yet. Your history will show up here."
-                          : isLikedSongs
-                          ? "No liked songs yet."
-                          : "No songs in this playlist yet.",
-                      style: const TextStyle(
-                        color: AppColors.text3,
-                        fontSize: 15,
-                      ),
                     ),
-                  ),
-                )
-              : SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.s4,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final song = songs[index];
-                      final isSongLiked =
-                          userState?.likedSongs?.any((s) => s.id == song.id) ??
-                          false;
-                      final artistsStr =
-                          song.artists?.map((a) => a.name).join(', ') ?? '';
+                    const SizedBox(height: 24),
 
-                      return Container(
-                        key: ValueKey(song.id),
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        child: InkWell(
-                          onTap: () {
-                            ref
-                                .read(playbackProvider.notifier)
-                                .playSongsFromList(songs, index);
-                            ref
-                                .read(playbackProvider.notifier)
-                                .setCurrentlyPlaying(
-                                  CurrentlyPlaying(
-                                    type: PlayingSourceType.playlist,
-                                    sourceId: widget.playlistId,
-                                    sourceName: playlistName,
-                                    thumbnail: _playlist?.thumbnail,
-                                  ),
-                                );
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.shuffle_rounded,
+                            color: AppColors.text2,
+                            size: 26,
+                          ),
+                          onPressed: () {
+                            ref.read(playbackProvider.notifier).toggleShuffle();
+                            AppSnackbar.show(
+                              message: "Shuffle toggled",
+                              type: AppSnackType.success,
+                            );
                           },
-                          borderRadius: AppRadius.smBorderRadius,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: Row(
-                              children: [
-                                AlbumArtCover(
-                                  seed: song.title,
-                                  size: 50,
-                                  radius: AppRadius.sm,
-                                  child:
-                                      song.thumbnail != null &&
-                                          song.thumbnail!.isNotEmpty
-                                      ? Image.network(
-                                          song.thumbnail!,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  const SizedBox.shrink(),
-                                        )
-                                      : null,
+                        ),
+                        if (!isVirtual && !isOwner && _playlist != null)
+                          Builder(
+                            builder: (context) {
+                              final isLiked =
+                                  userState?.likedPlaylists?.any(
+                                    (p) => p.id == _playlist!.id,
+                                  ) ??
+                                  false;
+                              return IconButton(
+                                icon: Icon(
+                                  isLiked
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color: isLiked
+                                      ? AppColors.danger
+                                      : AppColors.text2,
+                                  size: 26,
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        song.title,
-                                        style: const TextStyle(
-                                          color: AppColors.text,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '$artistsStr • ${_formatDuration(song.duration)}',
-                                        style: const TextStyle(
-                                          color: AppColors.text2,
-                                          fontSize: 13,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: Icon(
-                                    isSongLiked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: isSongLiked
-                                        ? AppColors.danger
-                                        : AppColors.text3,
-                                  ),
-                                  onPressed: () {
+                                onPressed: () {
+                                  if (isLiked) {
                                     ref
                                         .read(userProvider.notifier)
-                                        .likeSong(song.id);
-                                  },
+                                        .unlikePlaylist(_playlist!.id);
+                                  } else {
+                                    ref
+                                        .read(userProvider.notifier)
+                                        .likePlaylist(_playlist!);
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                        const Spacer(),
+                        if (songs.isNotEmpty)
+                          GestureDetector(
+                            onTap: () {
+                              ref
+                                  .read(playbackProvider.notifier)
+                                  .playSongsFromList(songs, 0);
+                              ref
+                                  .read(playbackProvider.notifier)
+                                  .setCurrentlyPlaying(
+                                    CurrentlyPlaying(
+                                      type: PlayingSourceType.playlist,
+                                      sourceId: widget.playlistId,
+                                      sourceName: playlistName,
+                                      thumbnail: _playlist?.thumbnail,
+                                    ),
+                                  );
+                            },
+                            child: Container(
+                              height: 56,
+                              width: 56,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Color(0xFF8B5CF6),
+                                    Color(0xFFEC4899),
+                                  ],
                                 ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.more_vert,
-                                    color: AppColors.text3,
-                                  ),
-                                  onPressed: () =>
-                                      _showMoreSheet(context, song),
-                                ),
-                              ],
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                size: 32,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }, childCount: songs.length),
-                  ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ),
-          const SliverToBoxAdapter(child: SizedBox(height: 120)),
-        ],
-      ),
+              ),
+            ),
+            songs.isEmpty
+                ? SliverFillRemaining(
+                    child: Center(
+                      child: Text(
+                        isHistory
+                            ? "Nothing played yet. Your history will show up here."
+                            : isDownloads
+                            ? "No downloads yet. Tap the download icon on a song to save it offline."
+                            : isLikedSongs
+                            ? "No liked songs yet."
+                            : "No songs in this playlist yet.",
+                        style: const TextStyle(
+                          color: AppColors.text3,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  )
+                : SliverPadding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.s4,
+                    ),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final song = songs[index];
+                        final isSongLiked =
+                            userState?.likedSongs?.any(
+                              (s) => s.id == song.id,
+                            ) ??
+                            false;
+                        final artistsStr =
+                            song.artists?.map((a) => a.name).join(', ') ?? '';
+
+                        return Container(
+                          key: ValueKey(song.id),
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          child: InkWell(
+                            onTap: () {
+                              final notifier = ref.read(
+                                playbackProvider.notifier,
+                              );
+
+                              if (isDownloads) {
+                                notifier.playShuffledFrom(songs, song);
+                              } else {
+                                notifier.playSongsFromList(songs, index);
+                              }
+                              notifier.setCurrentlyPlaying(
+                                CurrentlyPlaying(
+                                  type: PlayingSourceType.playlist,
+                                  sourceId: widget.playlistId,
+                                  sourceName: playlistName,
+                                  thumbnail: _playlist?.thumbnail,
+                                ),
+                              );
+                            },
+                            borderRadius: AppRadius.smBorderRadius,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 4.0,
+                              ),
+                              child: Row(
+                                children: [
+                                  AlbumArtCover(
+                                    seed: song.title,
+                                    size: 50,
+                                    radius: AppRadius.sm,
+                                    child:
+                                        song.thumbnail != null &&
+                                            song.thumbnail!.isNotEmpty
+                                        ? Image.network(
+                                            song.thumbnail!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    const SizedBox.shrink(),
+                                          )
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          song.title,
+                                          style: const TextStyle(
+                                            color: AppColors.text,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '$artistsStr • ${_formatDuration(song.duration)}',
+                                          style: const TextStyle(
+                                            color: AppColors.text2,
+                                            fontSize: 13,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(
+                                      isSongLiked
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: isSongLiked
+                                          ? AppColors.danger
+                                          : AppColors.text3,
+                                    ),
+                                    onPressed: () {
+                                      ref
+                                          .read(userProvider.notifier)
+                                          .likeSong(song.id);
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.more_vert,
+                                      color: AppColors.text3,
+                                    ),
+                                    onPressed: () =>
+                                        _showMoreSheet(context, song),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }, childCount: songs.length),
+                    ),
+                  ),
+            const SliverToBoxAdapter(child: SizedBox(height: 120)),
+          ],
+        ),
       ),
     );
   }

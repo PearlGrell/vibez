@@ -187,6 +187,7 @@ class SongOptionsBottomSheet extends ConsumerWidget {
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => BackdropFilter(

@@ -379,6 +379,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void _showMoreSheet(BuildContext context, SearchSong song) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => SongOptionsBottomSheet(song: song),

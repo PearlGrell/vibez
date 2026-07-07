@@ -11,11 +11,14 @@ import 'package:vibez/core/utils/app_snackbar.dart';
 import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/models/currently_playing.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
+import 'package:vibez/data/provider/downloads_provider.dart';
 import 'package:vibez/data/provider/song_cache_provider.dart' hide LoadState;
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/presentation/player/widgets/custom_track_shape.dart';
 import 'package:vibez/data/services/player_audio_service.dart';
 import 'package:vibez/presentation/common/album_art_cover.dart';
+import 'package:vibez/presentation/common/album_art_glow.dart';
+import 'package:vibez/core/utils/thumbnail.dart';
 import 'package:vibez/presentation/landing/widgets/app_icon_button.dart';
 import 'package:vibez/presentation/player/credits_screen.dart';
 import 'package:vibez/presentation/player/lyrics_screen.dart';
@@ -71,6 +74,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  Widget _buildDownloadButton(Song song) {
+    final downloads = ref.watch(downloadsProvider);
+    final isDownloaded = downloads.isDownloaded(song.id);
+    final isDownloading = downloads.isDownloading(song.id);
+
+    if (isDownloading) {
+      return const SizedBox(
+        width: 20,
+        height: 20,
+        child: Padding(
+          padding: EdgeInsets.all(2),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.primary,
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () async {
+        final notifier = ref.read(downloadsProvider.notifier);
+        if (isDownloaded) {
+          await notifier.removeDownload(song.id);
+          AppSnackbar.show(
+            message: 'Removed download',
+            type: AppSnackType.success,
+          );
+        } else {
+          final ok = await notifier.downloadSong(song);
+          AppSnackbar.show(
+            message: ok ? 'Downloaded for offline' : 'Download failed',
+            type: ok ? AppSnackType.success : AppSnackType.error,
+          );
+        }
+      },
+      child: Icon(
+        isDownloaded ? Icons.download_done_rounded : Icons.download_outlined,
+        color: isDownloaded ? AppColors.primary : AppColors.text2,
+        size: 21,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -98,6 +145,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) => BackdropFilter(
@@ -336,17 +384,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
           actions: [
             AppIconButton(
-              icon: queue.sleepTimerActive
-                  ? Icons.bedtime_rounded
-                  : Icons.bedtime_outlined,
-              iconColor: queue.sleepTimerActive ? AppColors.primary : null,
-              onTap: () => showSleepTimerSheet(context),
-            ),
-            AppIconButton(
               icon: Icons.queue_music_outlined,
               onTap: () {
                 showModalBottomSheet(
                   context: context,
+                  useRootNavigator: true,
                   isDismissible: true,
                   enableDrag: true,
                   isScrollControlled: true,
@@ -415,6 +457,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       height: artSize,
                       child: PageView.builder(
                         controller: _pageController,
+
+                        clipBehavior: Clip.none,
                         onPageChanged: _onPageChanged,
                         itemBuilder: (context, index) {
                           Song? getSongForIndex(int idx) {
@@ -444,37 +488,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           final song =
                               getSongForIndex(index) ?? queue.currentSong;
 
+                          final cover =
+                              song?.thumbnail != null &&
+                                  song!.thumbnail!.isNotEmpty
+                              ? hiResThumbnail(song.thumbnail!)
+                              : null;
                           return Center(
-                            child: AnimatedContainer(
-                              duration: Duration(milliseconds: 200),
-                              width: artSize * 1.2,
-                              height: artSize * 1.2,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.4),
-                                    blurRadius: 28,
-                                    spreadRadius: -4,
-                                    offset: const Offset(0, 14),
-                                  ),
-                                ],
-                              ),
-                              child: AlbumArtCover(
-                                size: artSize,
-                                radius: 16,
-                                seed: song?.title ?? 'Voyager',
-                                child:
-                                    song?.thumbnail != null &&
-                                        song!.thumbnail!.isNotEmpty
-                                    ? Image.network(
-                                        song.thumbnail!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
-                                                const SizedBox.shrink(),
-                                      )
-                                    : null,
+                            child: AlbumArtGlow(
+                              imageUrl: cover,
+                              radius: 20,
+                              playing: queue.playing,
+                              child: AnimatedContainer(
+                                duration: Duration(milliseconds: 200),
+                                width: artSize * 1.2,
+                                height: artSize * 1.2,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.4,
+                                      ),
+                                      blurRadius: 28,
+                                      spreadRadius: -4,
+                                      offset: const Offset(0, 14),
+                                    ),
+                                  ],
+                                ),
+                                child: AlbumArtCover(
+                                  size: artSize,
+                                  radius: 16,
+                                  seed: song?.title ?? 'Voyager',
+                                  child: cover != null
+                                      ? Image.network(
+                                          cover,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  const SizedBox.shrink(),
+                                        )
+                                      : null,
+                                ),
                               ),
                             ),
                           );
@@ -720,16 +774,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           ),
                         ),
                         IconButton(
-                          onPressed: queue.hasPrevious
-                              ? () => ref
-                                    .read(playbackProvider.notifier)
-                                    .playPrevious()
-                              : null,
+                          onPressed: () => ref
+                              .read(playbackProvider.notifier)
+                              .playPrevious(seek: true),
                           icon: Icon(
                             Icons.skip_previous_rounded,
-                            color: queue.hasPrevious
-                                ? Colors.white
-                                : AppColors.text2.withValues(alpha: 0.3),
+                            color: Colors.white,
                             size: 38,
                           ),
                         ),
@@ -814,6 +864,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             onTap: () {
                               showModalBottomSheet(
                                 context: context,
+                                useRootNavigator: true,
                                 isDismissible: true,
                                 enableDrag: true,
                                 isScrollControlled: true,
@@ -872,9 +923,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               spacing: 16,
                               children: [
                                 GestureDetector(
+                                  onTap: () => showSleepTimerSheet(context),
+                                  child: Icon(
+                                    queue.sleepTimerActive
+                                        ? Icons.bedtime_rounded
+                                        : Icons.bedtime_outlined,
+                                    color: queue.sleepTimerActive
+                                        ? AppColors.primary
+                                        : AppColors.text2,
+                                    size: 20,
+                                  ),
+                                ),
+                                GestureDetector(
                                   onTap: () {
                                     showModalBottomSheet(
                                       context: context,
+                                      useRootNavigator: true,
                                       isDismissible: true,
                                       enableDrag: true,
                                       isScrollControlled: true,
@@ -908,6 +972,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     size: 18,
                                   ),
                                 ),
+                                _buildDownloadButton(queue.currentSong!),
                                 GestureDetector(
                                   onTap: () {
                                     _showPlaylistSelector(

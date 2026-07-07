@@ -122,6 +122,7 @@ class _CustomizeProfileStepState extends ConsumerState<CustomizeProfileStep> {
   void _showImageSourceBottomSheet() {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: AppColors.surface,
       elevation: 0,
       shape: const RoundedRectangleBorder(

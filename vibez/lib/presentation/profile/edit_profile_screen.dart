@@ -218,6 +218,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void _showImageSourceBottomSheet() {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: AppColors.surface,
       elevation: 0,
       shape: const RoundedRectangleBorder(

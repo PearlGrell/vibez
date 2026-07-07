@@ -140,24 +140,37 @@ class RoomDetailsScreen extends ConsumerWidget {
         Positioned(
           top: MediaQuery.of(context).padding.top + 8,
           right: 8,
-          child: AppIconButton(
-            icon: Icons.ios_share_rounded,
-            iconSize: 18,
-            onTap: () async {
-              ShareUtil(
-                shareMode: .room,
-                id: room.id,
-                title: room.name,
-                url: null,
-              ).share().then((value) {
-                if (!value) {
-                  AppSnackbar.show(
-                    message: "Failed to share",
-                    type: AppSnackType.error,
-                  );
-                }
-              });
-            },
+          child: Row(
+            children: [
+              if (isMyRoom)
+                AppIconButton(
+                  icon: Icons.edit_outlined,
+                  iconSize: 18,
+                  onTap: () async {
+                    await AppRouter.instance.push('/room-add', extra: room);
+                    ref.read(roomProvider(roomId)).refresh();
+                  },
+                ),
+              AppIconButton(
+                icon: Icons.ios_share_rounded,
+                iconSize: 18,
+                onTap: () async {
+                  ShareUtil(
+                    shareMode: .room,
+                    id: room.id,
+                    title: room.name,
+                    url: null,
+                  ).share().then((value) {
+                    if (!value) {
+                      AppSnackbar.show(
+                        message: "Failed to share",
+                        type: AppSnackType.error,
+                      );
+                    }
+                  });
+                },
+              ),
+            ],
           ),
         ),
       ],

@@ -7,11 +7,13 @@ import 'package:vibez/core/router/app_router.dart';
 import 'package:vibez/core/utils/app_snackbar.dart';
 import 'package:vibez/core/theme/theme.dart';
 import 'package:vibez/data/services/player_audio_service.dart';
+import 'package:vibez/data/services/download_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
   await ApiClient.instance.init();
+  await DownloadService.init();
 
   final container = ProviderContainer();
 
