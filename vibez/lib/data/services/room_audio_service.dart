@@ -7,6 +7,7 @@ import 'package:vibez/data/provider/room_provider.dart';
 import 'package:vibez/data/services/ranged_audio_source.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 
+@pragma('vm:entry-point')
 class RoomAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
   final ProviderContainer _container;
   final AudioPlayer _player = AudioPlayer();

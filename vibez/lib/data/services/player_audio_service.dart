@@ -14,6 +14,7 @@ import 'package:vibez/data/provider/playback_provider.dart';
 import 'package:vibez/data/provider/song_cache_provider.dart' hide LoadState;
 import 'package:vibez/data/services/room_audio_service.dart';
 
+@pragma('vm:entry-point')
 class PlayerAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
   final ProviderContainer _container;
   final AudioPlayer _player = AudioPlayer();
@@ -397,6 +398,7 @@ class PlayerAudioHandler extends audio.BaseAudioHandler with audio.SeekHandler {
   Stream<Duration> get bufferedPositionStream => _player.bufferedPositionStream;
 }
 
+@pragma('vm:entry-point')
 class SwitchingAudioHandler extends audio.BaseAudioHandler
     with audio.SeekHandler {
   final PlayerAudioHandler playerHandler;
@@ -469,6 +471,17 @@ class SwitchingAudioHandler extends audio.BaseAudioHandler
   @override
   Future<void> setRepeatMode(audio.AudioServiceRepeatMode repeatMode) =>
       _activeHandler.setRepeatMode(repeatMode);
+
+  @override
+  Future<void> onTaskRemoved() async {
+    try {
+      await playerHandler.stop();
+    } catch (_) {}
+    try {
+      await roomHandler.stop();
+    } catch (_) {}
+    await super.onTaskRemoved();
+  }
 }
 
 class PlayerAudioService {
