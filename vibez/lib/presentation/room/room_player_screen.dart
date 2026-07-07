@@ -19,6 +19,8 @@ import 'package:vibez/data/models/user.dart';
 import 'package:vibez/data/models/message.dart';
 import 'package:vibez/data/provider/room_provider.dart';
 import 'package:vibez/data/provider/room_playback_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:vibez/data/services/audio_reactive_service.dart';
 import 'package:vibez/data/repositories/search_repository.dart';
 import 'package:vibez/data/repositories/song_repository.dart';
 import 'package:vibez/data/services/player_audio_service.dart';
@@ -98,6 +100,62 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
       if (!isDj) return;
       AppSnackbar.show(message: "${user.name} wants to be the DJ");
     });
+
+    _checkMicrophonePermission();
+  }
+
+  Future<void> _checkMicrophonePermission() async {
+    final status = await Permission.microphone.status;
+    if (status.isDenied) {
+      if (!mounted) return;
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.background,
+          title: Text(
+            'Visualizer Permission',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.text,
+            ),
+          ),
+          content: Text(
+            'Vibez needs microphone permission to run the audio visualizer so that the album art pulses to the beat of the music. No audio is recorded or stored.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.text2,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.text3),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: const StadiumBorder(),
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(
+                'Grant',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (result == true) {
+        final requestStatus = await Permission.microphone.request();
+        if (requestStatus.isGranted) {
+          await AudioReactiveService.instance.retryStart();
+        }
+      }
+    }
   }
 
   void _syncUpNextTimer(RoomProvider roomRef, Song currentSong) {

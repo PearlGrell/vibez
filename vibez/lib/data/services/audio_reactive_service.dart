@@ -26,6 +26,15 @@ class AudioReactiveService {
     } catch (_) {}
   }
 
+  Future<void> retryStart() async {
+    final sid = _sessionId;
+    if (sid != null) {
+      try {
+        await _method.invokeMethod('start', {'sessionId': sid});
+      } catch (_) {}
+    }
+  }
+
   Future<void> stop() async {
     _sessionId = null;
     try {

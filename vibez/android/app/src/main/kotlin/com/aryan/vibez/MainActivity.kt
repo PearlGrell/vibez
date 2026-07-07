@@ -59,22 +59,6 @@ class MainActivity : AudioServiceActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            pendingSessionId = sessionId
-            android.app.AlertDialog.Builder(this)
-                .setTitle("Audio Visualizer Permission")
-                .setMessage("Vibez needs microphone permission to run the audio visualizer so that the album art pulses to the beat of the music. No audio is recorded or stored.")
-                .setPositiveButton("Grant") { _, _ ->
-                    ActivityCompat.requestPermissions(
-                        this,
-                        arrayOf(Manifest.permission.RECORD_AUDIO),
-                        permRequestCode,
-                    )
-                }
-                .setNegativeButton("Cancel") { dialog, _ ->
-                    dialog.dismiss()
-                }
-                .setCancelable(false)
-                .show()
             return
         }
 
