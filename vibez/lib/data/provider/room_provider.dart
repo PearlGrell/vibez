@@ -14,6 +14,7 @@ import 'package:vibez/data/models/user.dart';
 import 'package:vibez/data/provider/playback_provider.dart';
 import 'package:vibez/data/provider/song_cache_provider.dart';
 import 'package:vibez/data/provider/user_provider.dart';
+import 'package:vibez/data/repositories/user_repository.dart';
 
 enum RoomStatus { loading, ready, error }
 
@@ -37,6 +38,8 @@ class RoomProvider extends ChangeNotifier {
   StreamSubscription? _connectionSub;
   StreamSubscription? _djRequestsSub;
   StreamSubscription? _messagesSub;
+  StreamSubscription? _userJoinedSub;
+  StreamSubscription? _userLeftSub;
 
   final StreamController<RequestItem> _songRequestedController =
       StreamController<RequestItem>.broadcast();
@@ -114,13 +117,50 @@ class RoomProvider extends ChangeNotifier {
           Map<String, dynamic>.from(data as Map),
         );
         if (update.room.id != roomId) return;
-        final previousDjId = room?.currentDj?.id;
+
+        final previousDj = room?.currentDj;
+        final newDj = update.room.currentDj;
+        final previousSong = room?.currentSong;
+        final newSong = update.room.currentSong;
+
         room = update.room;
         participants = update.participants;
         participantsInitials = update.participantsInitials;
-        if (room?.currentDj != null && room?.currentDj?.id != previousDjId) {
+
+        if (previousDj?.id != newDj?.id) {
+          if (newDj != null) {
+            messages.add(Message(
+              roomId: roomId,
+              message: 'is now the DJ',
+              sentBy: newDj,
+            ));
+          } else if (previousDj != null) {
+            messages.add(Message(
+              roomId: roomId,
+              message: 'stepped down as the DJ',
+              sentBy: previousDj,
+            ));
+          }
           djRequests.clear();
         }
+
+        // Detect Song changes
+        if (previousSong?.id != newSong?.id) {
+          if (newSong != null) {
+            messages.add(Message(
+              roomId: roomId,
+              message: 'Now playing "${newSong.title}"',
+              sentBy: newDj ?? room?.createdBy ?? User(id: 'system', name: 'System', email: 'system@vibez.app'),
+            ));
+          } else if (previousSong != null) {
+            messages.add(Message(
+              roomId: roomId,
+              message: 'Playback stopped',
+              sentBy: previousDj ?? room?.createdBy ?? User(id: 'system', name: 'System', email: 'system@vibez.app'),
+            ));
+          }
+        }
+
         notifyListeners();
         _maybeFetchRecommendations();
       });
@@ -162,8 +202,50 @@ class RoomProvider extends ChangeNotifier {
       _messagesSub = _socket.stream('room:messages_sent').listen((data) async {
         final message = Message.fromJson(data);
         if (roomId != message.roomId) return;
-        messages.add(message);
+        if (message.sentBy.id != (_ref.read(userProvider)?.id ?? "")) {
+          messages.add(message);
+        }
         notifyListeners();
+      });
+
+      _userJoinedSub = _socket.stream('room:user_joined').listen((data) async {
+        try {
+          final map = Map<String, dynamic>.from(data as Map);
+          final joinedUserId = map['userId'] as String?;
+          if (joinedUserId == null) return;
+
+          final joinedUser = await UserRepository.instance.getUser(joinedUserId);
+          if (joinedUser == null) return;
+
+          final systemMsg = Message(
+            roomId: roomId,
+            message: 'joined the room',
+            sentBy: joinedUser,
+          );
+
+          messages.add(systemMsg);
+          notifyListeners();
+        } catch (_) {}
+      });
+
+      _userLeftSub = _socket.stream('room:user_left').listen((data) async {
+        try {
+          final map = Map<String, dynamic>.from(data as Map);
+          final leftUserId = map['userId'] as String?;
+          if (leftUserId == null) return;
+
+          final leftUser = await UserRepository.instance.getUser(leftUserId);
+          if (leftUser == null) return;
+
+          final systemMsg = Message(
+            roomId: roomId,
+            message: 'left the room',
+            sentBy: leftUser,
+          );
+
+          messages.add(systemMsg);
+          notifyListeners();
+        } catch (_) {}
       });
 
       _connectionSub = _socket.connectionStream().listen((connected) {
@@ -251,6 +333,10 @@ class RoomProvider extends ChangeNotifier {
   }
 
   Future<void> sendMessage(String message) async {
+    final sentBy = _ref.read(userProvider);
+    if (sentBy == null) return;
+    messages.add(Message(roomId: roomId, message: message, sentBy: sentBy));
+    notifyListeners();
     await _socket.emitWithAck('room:send_message', {
       'roomId': roomId,
       'message': message,
@@ -421,6 +507,8 @@ class RoomProvider extends ChangeNotifier {
     _djRequestsSub?.cancel();
     _connectionSub?.cancel();
     _messagesSub?.cancel();
+    _userJoinedSub?.cancel();
+    _userLeftSub?.cancel();
     _songRequestedController.close();
     _djRequestedController.close();
     super.dispose();

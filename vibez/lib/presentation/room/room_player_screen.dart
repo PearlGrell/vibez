@@ -155,6 +155,25 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
     }
   }
 
+  void _showUserProfile(BuildContext context, String userId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.85,
+          child: UserProfileScreen(userId: userId),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(roomPlaybackProvider);
@@ -414,31 +433,40 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
     Message message,
     String? currentUserId,
   ) {
-    final isSystemMessage = message.message.toLowerCase().contains(
-      'joined the room',
-    );
+    final msgLower = message.message.toLowerCase();
+    final isSystemMessage = msgLower.contains('joined the room') ||
+        msgLower.contains('left the room') ||
+        msgLower.contains('is now the dj') ||
+        msgLower.contains('stepped down as the dj') ||
+        msgLower.contains('now playing') ||
+        msgLower.contains('playback stopped');
 
     if (isSystemMessage) {
-      final displayMessage = message.message.startsWith('@')
+      final displayMessage = message.message.startsWith('@') ||
+              message.message.startsWith('Now playing') ||
+              message.message.startsWith('Playback stopped')
           ? message.message
           : "@${message.sentBy.username ?? message.sentBy.name} ${message.message}";
 
       final systemWidget = Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: AppSpacing.s1 * 1.5),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.s3,
-            vertical: AppSpacing.s1 * 1.5,
-          ),
-          decoration: BoxDecoration(
-            color: AppColors.card.withValues(alpha: 0.4),
-            borderRadius: AppRadius.pillBorderRadius,
-          ),
-          child: Text(
-            displayMessage,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.text2,
-              fontWeight: FontWeight.w500,
+        child: GestureDetector(
+          onTap: () => _showUserProfile(context, message.sentBy.id),
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: AppSpacing.s1 * 1.5),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s3,
+              vertical: AppSpacing.s1 * 1.5,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.card.withValues(alpha: 0.4),
+              borderRadius: AppRadius.pillBorderRadius,
+            ),
+            child: Text(
+              displayMessage,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.text2,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ),
@@ -465,21 +493,56 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
     final user = message.sentBy;
     final isMe = user.id == currentUserId;
     final seed = user.username ?? user.name;
+    final profileUrl = user.profileUrl;
 
-    final avatar = Container(
-      height: 36,
-      width: 36,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: AppColors.generateBgColor(seed).bg,
-      ),
-      child: Center(
-        child: Text(
-          user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: AppColors.generateTextColor(seed),
-            fontWeight: FontWeight.bold,
-          ),
+    final isDefaultColor = profileUrl != null && profileUrl.startsWith('default://');
+    final hasImage = profileUrl != null && profileUrl.isNotEmpty && !isDefaultColor;
+
+    final avatarBgColor = isDefaultColor
+        ? Color(
+            int.parse(
+              'FF${profileUrl.replaceFirst('default://', '')}',
+              radix: 16,
+            ),
+          )
+        : AppColors.generateBgColor(seed).bg;
+
+    final avatarTextColor = isDefaultColor
+        ? Colors.white
+        : AppColors.generateTextColor(seed);
+
+    final avatar = GestureDetector(
+      onTap: isMe ? null : () => _showUserProfile(context, user.id),
+      child: Container(
+        height: 36,
+        width: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: avatarBgColor,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Center(
+          child: hasImage
+              ? Image.network(
+                  profileUrl,
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Text(
+                    user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: avatarTextColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                )
+              : Text(
+                  user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: avatarTextColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
         ),
       ),
     );
@@ -488,11 +551,14 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            isMe ? "@you" : "@${user.username ?? user.name}",
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.secondary,
-              fontWeight: FontWeight.bold,
+          GestureDetector(
+            onTap: isMe ? null : () => _showUserProfile(context, user.id),
+            child: Text(
+              isMe ? "@you" : "@${user.username ?? user.name}",
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: isMe ? AppColors.secondary : AppColors.text2,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(height: 4),

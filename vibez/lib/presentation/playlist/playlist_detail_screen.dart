@@ -569,17 +569,21 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             songs.isEmpty
                 ? SliverFillRemaining(
                     child: Center(
-                      child: Text(
-                        isHistory
-                            ? "Nothing played yet. Your history will show up here."
-                            : isDownloads
-                            ? "No downloads yet. Tap the download icon on a song to save it offline."
-                            : isLikedSongs
-                            ? "No liked songs yet."
-                            : "No songs in this playlist yet.",
-                        style: const TextStyle(
-                          color: AppColors.text3,
-                          fontSize: 15,
+                      child: Padding(
+                        padding: .symmetric(horizontal: AppSpacing.s3),
+                        child: Text(
+                          isHistory
+                              ? "Nothing played yet. Your history will show up here."
+                              : isDownloads
+                              ? "No downloads yet. Tap the download icon on a song to save it offline."
+                              : isLikedSongs
+                              ? "No liked songs yet."
+                              : "No songs in this playlist yet.",
+                          style: const TextStyle(
+                            color: AppColors.text3,
+                            fontSize: 15,
+                          ),
+                          textAlign: .center,
                         ),
                       ),
                     ),

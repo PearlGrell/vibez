@@ -17,6 +17,140 @@ class ProfileScreen extends ConsumerWidget {
   final VoidCallback onBack;
   const ProfileScreen({super.key, required this.onBack});
 
+  void _showUsersList(BuildContext context, String title, List<User> users) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: AppColors.background,
+      builder: (context) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.text3.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              if (users.isEmpty)
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      'No users found',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: AppColors.text2,
+                          ),
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+                    itemCount: users.length,
+                    itemBuilder: (context, index) {
+                      final u = users[index];
+                      final seed = u.username ?? u.name;
+                      final profileUrl = u.profileUrl;
+
+                      final isDefaultColor =
+                          profileUrl != null && profileUrl.startsWith('default://');
+                      final hasImage =
+                          profileUrl != null && profileUrl.isNotEmpty && !isDefaultColor;
+
+                      final avatarBgColor = isDefaultColor
+                          ? Color(
+                              int.parse(
+                                'FF${profileUrl.replaceFirst('default://', '')}',
+                                radix: 16,
+                              ),
+                            )
+                          : AppColors.generateBgColor(seed).bg;
+
+                      final avatarTextColor = isDefaultColor
+                          ? Colors.white
+                          : AppColors.generateTextColor(seed);
+
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                        onTap: () {
+                          Navigator.pop(context); // Close bottom sheet
+                          context.push('/user/${u.id}'); // Navigate to profile
+                        },
+                        leading: Container(
+                          height: 40,
+                          width: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: avatarBgColor,
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Center(
+                            child: hasImage
+                                ? Image.network(
+                                    profileUrl,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Text(
+                                      u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+                                      style: TextStyle(
+                                        color: avatarTextColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  )
+                                : Text(
+                                    u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+                                    style: TextStyle(
+                                      color: avatarTextColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        title: Text(
+                          u.name,
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.text,
+                              ),
+                        ),
+                        subtitle: Text(
+                          u.username != null ? '@${u.username}' : '',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.text2,
+                              ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(userProvider);
@@ -256,6 +390,12 @@ class ProfileScreen extends ConsumerWidget {
                           followers: profile.followers?.length ?? 0,
                           following: profile.following?.length ?? 0,
                           rooms: profile.joinedRooms?.length ?? 0,
+                          onFollowersTap: () {
+                            _showUsersList(context, 'Followers', profile.followers ?? []);
+                          },
+                          onFollowingTap: () {
+                            _showUsersList(context, 'Following', profile.following ?? []);
+                          },
                         ),
                       ),
 
@@ -366,36 +506,48 @@ class ProfileStatsCard extends StatelessWidget {
   final int followers;
   final int following;
   final int rooms;
+  final VoidCallback? onFollowersTap;
+  final VoidCallback? onFollowingTap;
 
   const ProfileStatsCard({
     super.key,
     required this.followers,
     required this.following,
     required this.rooms,
+    this.onFollowersTap,
+    this.onFollowingTap,
   });
 
-  Widget _buildStat(BuildContext context, String value, String label) {
+  Widget _buildStat(BuildContext context, String value, String label, {VoidCallback? onTap}) {
+    final col = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: AppColors.text,
+          ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontSize: 12,
+            color: AppColors.text2,
+          ),
+        ),
+      ],
+    );
+
     return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: AppColors.text,
-            ),
-          ),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 12,
-              color: AppColors.text2,
-            ),
-          ),
-        ],
-      ),
+      child: onTap != null
+          ? GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: col,
+            )
+          : col,
     );
   }
 
@@ -419,9 +571,9 @@ class ProfileStatsCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _buildStat(context, followers.toString(), 'Followers'),
+          _buildStat(context, followers.toString(), 'Followers', onTap: onFollowersTap),
           _divider(),
-          _buildStat(context, following.toString(), 'Following'),
+          _buildStat(context, following.toString(), 'Following', onTap: onFollowingTap),
           _divider(),
           _buildStat(context, rooms.toString(), 'Rooms'),
         ],
