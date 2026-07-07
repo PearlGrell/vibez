@@ -10,8 +10,47 @@ permissions:
   contents: write
 
 jobs:
+  check-version:
+    name: Check Version Bump
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check version change
+        id: check
+        run: |
+          # Get current version
+          version=$(grep '^version:' vibez/pubspec.yaml | sed -E 's/version:[[:space:]]*//' | tr -d '\r\n')
+          echo "Current version: '$version'"
+          
+          # Get previous version
+          if git show HEAD~1:vibez/pubspec.yaml >/dev/null 2>&1; then
+            prev_version=$(git show HEAD~1:vibez/pubspec.yaml | grep '^version:' | sed -E 's/version:[[:space:]]*//' | tr -d '\r\n')
+            echo "Previous version: '$prev_version'"
+          else
+            prev_version=""
+            echo "No previous commit found."
+          fi
+          
+          if [ "$version" = "$prev_version" ]; then
+            echo "No version bump detected. Skipping build."
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version bumped from '$prev_version' to '$version'."
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "version=$version" >> $GITHUB_OUTPUT
+          fi
+
   build-and-release:
     name: Build APK and Publish Release
+    needs: check-version
+    if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -49,10 +88,10 @@ jobs:
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0-build.${{ github.run_number }}
-          name: "Release v0.1.0 Build #${{ github.run_number }}"
+          tag_name: v${{ needs.check-version.outputs.version }}
+          name: "Release v${{ needs.check-version.outputs.version }}"
           body: |
-            Automatic build for the latest commit.
+            Release build for version ${{ needs.check-version.outputs.version }}.
 
             **Commit:** ${{ github.sha }}
             **Message:** ${{ github.event.head_commit.message }}
