@@ -1,0 +1,64 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build APK and Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Create .env file
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > vibez/.env
+          else
+            echo "ENVIRONMENT=production" > vibez/.env
+            echo "API_URL=https://vibez-backend-1esn.onrender.com" >> vibez/.env
+          fi
+
+      - name: Install Dependencies
+        run: flutter pub get
+        working-directory: vibez
+
+      - name: Build APK
+        run: flutter build apk --release
+        working-directory: vibez
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.0-build.${{ github.run_number }}
+          name: "Release v0.1.0 Build #${{ github.run_number }}"
+          body: |
+            Automatic build for the latest commit.
+
+            **Commit:** ${{ github.sha }}
+            **Message:** ${{ github.event.head_commit.message }}
+            **Timestamp:** ${{ github.event.head_commit.timestamp }}
+          draft: false
+          prerelease: false
+          files: vibez/build/app/outputs/flutter-apk/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
