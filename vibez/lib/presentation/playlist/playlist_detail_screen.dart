@@ -1,10 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:vibez/core/router/app_router.dart';
 import 'package:vibez/core/theme/colors.dart';
 import 'package:vibez/core/theme/radius.dart';
 import 'package:vibez/core/theme/spacing.dart';
-import 'package:vibez/data/models/playlist.dart';
 import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/provider/user_provider.dart';
 import 'package:vibez/data/models/currently_playing.dart';
@@ -33,6 +34,30 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   Playlist? _playlist;
   bool _isLoading = false;
   String? _errorMessage;
+
+  Future<bool> _hasInternet() async {
+    try {
+      final res = await InternetAddress.lookup('google.com');
+      return res.isNotEmpty && res[0].rawAddress.isNotEmpty;
+    } on SocketException {
+      return false;
+    }
+  }
+
+  Future<void> _handleDownloadsBack() async {
+    final hasNet = await _hasInternet();
+    if (hasNet) {
+      await ref.read(userProvider.notifier).fetchMe();
+      if (mounted) {
+        context.go(RouteLocation.discover);
+      }
+    } else {
+      AppSnackbar.show(
+        message: "You're still offline. Connect to the internet to access the main screen.",
+        type: AppSnackType.warning,
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -180,8 +205,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
 
     final isOwner = !isVirtual && _playlist?.createdById == userState?.id;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return PopScope(
+      canPop: !isDownloads,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        _handleDownloadsBack();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
       floatingActionButton: isOwner
           ? Padding(
               padding: const EdgeInsets.only(bottom: 80),
@@ -216,10 +247,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               leading: AppIconButton(
                 icon: Icons.chevron_left,
                 onTap: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
+                  if (isDownloads) {
+                    _handleDownloadsBack();
                   } else {
-                    Navigator.pushNamed(context, '/');
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    } else {
+                      context.go(RouteLocation.discover);
+                    }
                   }
                 },
               ),
@@ -674,6 +709,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }

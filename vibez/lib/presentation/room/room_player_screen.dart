@@ -16,6 +16,7 @@ import 'package:vibez/data/models/lyrics.dart';
 import 'package:vibez/data/models/search_result.dart';
 import 'package:vibez/data/models/song.dart';
 import 'package:vibez/data/models/user.dart';
+import 'package:vibez/data/models/message.dart';
 import 'package:vibez/data/provider/room_provider.dart';
 import 'package:vibez/data/provider/room_playback_provider.dart';
 import 'package:vibez/data/repositories/search_repository.dart';
@@ -38,6 +39,7 @@ class RoomPlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
+  final FocusNode _messageFocusNode = FocusNode();
   StreamSubscription? _songRequestAlertSub;
   StreamSubscription? _djRequestAlertSub;
 
@@ -67,6 +69,7 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
   @override
   void initState() {
     super.initState();
+    _messageFocusNode.addListener(_onFocusChange);
     final roomRef = ref.read(roomProvider(widget.roomId));
 
     _roomSub = ref.listenManual(roomProvider(widget.roomId), (prev, next) {
@@ -118,8 +121,14 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
     });
   }
 
+  void _onFocusChange() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _messageFocusNode.removeListener(_onFocusChange);
+    _messageFocusNode.dispose();
     _roomSub?.close();
     _songRequestAlertSub?.cancel();
     _djRequestAlertSub?.cancel();
@@ -153,6 +162,7 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
     final userRef = ref.watch(userProvider);
     final room = roomRef.room;
     final isDj = roomRef.room?.currentDj?.id == userRef?.id;
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
     if (room == null) {
       roomRef.leaveRoom();
@@ -185,11 +195,11 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
             children: [
               Column(
                 children: [
-                  Expanded(
-                    child: ListView(
-                      padding: EdgeInsets.zero,
+                  SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const SizedBox(height: AppSpacing.s4),
+                        SizedBox(height: isKeyboardOpen ? AppSpacing.s1 : AppSpacing.s4),
                         Center(
                           child: room.currentDj != null
                               ? _buildDjChip(
@@ -201,29 +211,69 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
                                 )
                               : _buildNoDj(context),
                         ),
-                        const SizedBox(height: AppSpacing.s5),
+                        SizedBox(height: isKeyboardOpen ? AppSpacing.s2 : AppSpacing.s5),
                         _FlippableAlbumCard(room: room, lyrics: _currentLyrics),
-                        const SizedBox(height: AppSpacing.s4),
-                        Center(
-                          child: Text(
-                            song?.title ?? "Nothing is playing right now.",
-                            style: Theme.of(context).textTheme.headlineLarge,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.s2),
-                        Center(
-                          child: Text(
-                            song?.artists?.map((e) => e.name).join(", ") ??
-                                (isDj
-                                    ? "Queue up some songs to get the music started"
-                                    : "Request a song from the DJ to get things going"),
-                            style: Theme.of(context).textTheme.bodyLarge,
-                            textAlign: .center,
+                        SizedBox(height: isKeyboardOpen ? AppSpacing.s2 : AppSpacing.s4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+                          child: Center(
+                            child: Text(
+                              song?.title ?? "Nothing is playing right now.",
+                              style: isKeyboardOpen
+                                  ? Theme.of(context).textTheme.titleMedium?.copyWith(
+                                        color: AppColors.text,
+                                        fontWeight: FontWeight.bold,
+                                      )
+                                  : Theme.of(context).textTheme.headlineLarge,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                         if (song != null) ...[
+                          if (isKeyboardOpen) ...[
+                            const SizedBox(height: 2),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+                              child: Center(
+                                child: Text(
+                                  song.artists?.map((e) => e.name).join(", ") ?? "",
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: AppColors.text2,
+                                      ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          ] else ...[
+                            const SizedBox(height: AppSpacing.s2),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+                              child: Center(
+                                child: Text(
+                                  song.artists?.map((e) => e.name).join(", ") ?? "",
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ] else if (!isKeyboardOpen) ...[
+                          const SizedBox(height: AppSpacing.s2),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+                            child: Center(
+                              child: Text(
+                                isDj
+                                    ? "Queue up some songs to get the music started"
+                                    : "Request a song from the DJ to get things going",
+                                style: Theme.of(context).textTheme.bodyLarge,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (song != null && !isKeyboardOpen) ...[
                           const SizedBox(height: AppSpacing.s6 * 0.85),
                           Padding(
                             padding: const EdgeInsets.symmetric(
@@ -235,7 +285,39 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
                       ],
                     ),
                   ),
-                  _buildBottomBar(context, isDj, roomRef),
+                  const SizedBox(height: AppSpacing.s3),
+                  Expanded(
+                    child: ShaderMask(
+                      shaderCallback: (Rect bounds) {
+                        return const LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black,
+                            Colors.black,
+                            Colors.transparent,
+                          ],
+                          stops: [
+                            0.0,
+                            0.85,
+                            1.0,
+                          ],
+                        ).createShader(bounds);
+                      },
+                      blendMode: BlendMode.dstIn,
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: roomRef.messages.length,
+                        reverse: true,
+                        itemBuilder: (context, index) {
+                          final message = roomRef
+                              .messages[roomRef.messages.length - 1 - index];
+                          return _buildMessageItem(context, message, userRef?.id);
+                        },
+                      ),
+                    ),
+                  ),
+                  _buildBottomBar(context, isDj, roomRef, _messageFocusNode),
                 ],
               ),
               if (_upNextSong != null && song != null)
@@ -324,6 +406,143 @@ class _RoomPlayerScreenState extends ConsumerState<RoomPlayerScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMessageItem(
+    BuildContext context,
+    Message message,
+    String? currentUserId,
+  ) {
+    final isSystemMessage = message.message.toLowerCase().contains(
+      'joined the room',
+    );
+
+    if (isSystemMessage) {
+      final displayMessage = message.message.startsWith('@')
+          ? message.message
+          : "@${message.sentBy.username ?? message.sentBy.name} ${message.message}";
+
+      final systemWidget = Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: AppSpacing.s1 * 1.5),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.s3,
+            vertical: AppSpacing.s1 * 1.5,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.card.withValues(alpha: 0.4),
+            borderRadius: AppRadius.pillBorderRadius,
+          ),
+          child: Text(
+            displayMessage,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.text2,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+
+      return TweenAnimationBuilder<double>(
+        key: ValueKey(message),
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutQuad,
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, 15 * (1 - value)),
+              child: child,
+            ),
+          );
+        },
+        child: systemWidget,
+      );
+    }
+
+    final user = message.sentBy;
+    final isMe = user.id == currentUserId;
+    final seed = user.username ?? user.name;
+
+    final avatar = Container(
+      height: 36,
+      width: 36,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.generateBgColor(seed).bg,
+      ),
+      child: Center(
+        child: Text(
+          user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: AppColors.generateTextColor(seed),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+
+    final messageColumn = Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isMe ? "@you" : "@${user.username ?? user.name}",
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.secondary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: AppRadius.smBorderRadius,
+            ),
+            child: Text(
+              message.message,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.text),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final userMessageWidget = Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s4,
+        vertical: AppSpacing.s1 * 1.5,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          avatar,
+          const SizedBox(width: AppSpacing.s3),
+          messageColumn,
+        ],
+      ),
+    );
+
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(message),
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutQuad,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 15 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: userMessageWidget,
     );
   }
 }
@@ -477,7 +696,14 @@ Widget _buildUpNextCard(
   );
 }
 
-Widget _buildBottomBar(BuildContext context, bool isDj, RoomProvider roomRef) {
+final TextEditingController messageController = TextEditingController();
+
+Widget _buildBottomBar(
+  BuildContext context,
+  bool isDj,
+  RoomProvider roomRef,
+  FocusNode focusNode,
+) {
   return Container(
     height: kBottomNavigationBarHeight * 1.2,
     padding: .symmetric(horizontal: AppSpacing.s3),
@@ -492,6 +718,8 @@ Widget _buildBottomBar(BuildContext context, bool isDj, RoomProvider roomRef) {
       children: [
         Expanded(
           child: TextField(
+            controller: messageController,
+            focusNode: focusNode,
             decoration: InputDecoration(
               border: InputBorder.none,
               contentPadding: .only(left: AppSpacing.s3),
@@ -541,7 +769,14 @@ Widget _buildBottomBar(BuildContext context, bool isDj, RoomProvider roomRef) {
             shape: .circle,
           ),
           child: IconButton.filled(
-            onPressed: () {},
+            onPressed: () {
+              if (messageController.text.isEmpty ||
+                  messageController.text.trim().isEmpty) {
+                return;
+              }
+              roomRef.sendMessage(messageController.text);
+              messageController.clear();
+            },
             icon: Icon(Icons.send_rounded),
           ),
         ),
@@ -613,6 +848,8 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
   @override
   Widget build(BuildContext context) {
     final hasLyrics = widget.lyrics != null && widget.lyrics!.lyrics.isNotEmpty;
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    final cardSize = isKeyboardOpen ? 60.0 : 200.0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -626,13 +863,13 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
               final isFront = angle <= math.pi / 2;
               const maxLyricsWidth = 320.0;
               final currentWidth =
-                  200.0 +
-                  (math.min(fullWidth, maxLyricsWidth) - 200.0) *
+                  cardSize +
+                  (math.min(fullWidth, maxLyricsWidth) - cardSize) *
                       _widthFractionAnim.value;
 
               return SizedBox(
                 width: currentWidth,
-                height: 200,
+                height: cardSize,
                 child: Transform(
                   alignment: Alignment.center,
                   transform: isFront
@@ -642,7 +879,9 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
                       : (Matrix4.identity()
                           ..setEntry(3, 2, 0.001)
                           ..rotateY(angle - math.pi)),
-                  child: isFront ? _buildFront(hasLyrics) : _buildBack(),
+                  child: isFront
+                      ? _buildFront(hasLyrics, cardSize, isKeyboardOpen)
+                      : _buildBack(cardSize, isKeyboardOpen),
                 ),
               );
             },
@@ -652,7 +891,7 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
     );
   }
 
-  Widget _buildFront(bool hasLyrics) {
+  Widget _buildFront(bool hasLyrics, double cardSize, bool isKeyboardOpen) {
     final song = widget.room.currentSong;
     final thumb = song?.thumbnail;
     final hasCover = thumb != null && thumb.isNotEmpty;
@@ -661,70 +900,71 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
     return Center(
       child: AlbumArtGlow(
         imageUrl: cover,
-        radius: 16,
+        radius: isKeyboardOpen ? 6 : 16,
         playing: widget.room.playing,
         child: SizedBox(
-        width: 200,
-        height: 200,
-        child: Stack(
-          children: [
-            AlbumArtCover(
-              seed: song?.title ?? widget.room.name,
-              size: 200,
-              child: cover != null
-                  ? Image.network(
-                      cover,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    )
-                  : null,
-            ),
-            Positioned(
-              bottom: AppSpacing.s3,
-              left: AppSpacing.s4,
-              child: EqualizerBars(
-                color: Colors.white,
-                barCount: 5,
-                barSpacing: 4,
-                size: 25,
+          width: cardSize,
+          height: cardSize,
+          child: Stack(
+            children: [
+              AlbumArtCover(
+                seed: song?.title ?? widget.room.name,
+                size: cardSize,
+                child: cover != null
+                    ? Image.network(
+                        cover,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      )
+                    : null,
               ),
-            ),
-            if (hasLyrics)
-              Positioned(
-                bottom: AppSpacing.s3,
-                right: AppSpacing.s3,
-                child: GestureDetector(
-                  onTap: _flip,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.hairlineDark),
-                    ),
-                    child: const Text(
-                      'Lyrics',
-                      style: TextStyle(
-                        color: AppColors.text,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.4,
+              if (!isKeyboardOpen)
+                Positioned(
+                  bottom: AppSpacing.s3,
+                  left: AppSpacing.s4,
+                  child: const EqualizerBars(
+                    color: Colors.white,
+                    barCount: 5,
+                    barSpacing: 4,
+                    size: 25,
+                  ),
+                ),
+              if (hasLyrics && !isKeyboardOpen)
+                Positioned(
+                  bottom: AppSpacing.s3,
+                  right: AppSpacing.s3,
+                  child: GestureDetector(
+                    onTap: _flip,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.hairlineDark),
+                      ),
+                      child: const Text(
+                        'Lyrics',
+                        style: TextStyle(
+                          color: AppColors.text,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.4,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildBack() {
+  Widget _buildBack(double cardSize, bool isKeyboardOpen) {
     final lyrics = widget.lyrics;
     if (lyrics == null || lyrics.lyrics.isEmpty) return const SizedBox.shrink();
 
@@ -735,10 +975,10 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
           height: double.infinity,
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(isKeyboardOpen ? 8 : 16),
             border: Border.all(color: AppColors.hairlineDark),
           ),
-          padding: const EdgeInsets.all(AppSpacing.s3),
+          padding: EdgeInsets.all(isKeyboardOpen ? AppSpacing.s1 : AppSpacing.s3),
           child: Center(
             child: StreamBuilder<Duration>(
               stream: PlayerAudioService.roomHandler.positionStream,
@@ -773,11 +1013,11 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
                     lyrics.lyrics[currentIndex].text,
                     key: ValueKey(currentIndex),
                     textAlign: TextAlign.center,
-                    maxLines: 3,
+                    maxLines: isKeyboardOpen ? 1 : 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.text,
-                      fontSize: 22,
+                      fontSize: isKeyboardOpen ? 11 : 22,
                       fontWeight: FontWeight.w600,
                       height: 1.35,
                     ),
@@ -787,37 +1027,39 @@ class _FlippableAlbumCardState extends State<_FlippableAlbumCard>
             ),
           ),
         ),
-        Positioned(
-          top: AppSpacing.s2,
-          left: AppSpacing.s3,
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s2,
-              vertical: AppSpacing.s1,
-            ),
-            child: const Text(
-              'LYRICS',
-              style: TextStyle(
-                color: AppColors.text2,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
+        if (!isKeyboardOpen) ...[
+          Positioned(
+            top: AppSpacing.s2,
+            left: AppSpacing.s3,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s2,
+                vertical: AppSpacing.s1,
+              ),
+              child: const Text(
+                'LYRICS',
+                style: TextStyle(
+                  color: AppColors.text2,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
               ),
             ),
           ),
-        ),
-        Positioned(
-          top: AppSpacing.s2,
-          right: AppSpacing.s2,
-          child: GestureDetector(
-            onTap: _flip,
-            child: const Icon(
-              Icons.close_rounded,
-              color: AppColors.text2,
-              size: 18,
+          Positioned(
+            top: AppSpacing.s2,
+            right: AppSpacing.s2,
+            child: GestureDetector(
+              onTap: _flip,
+              child: const Icon(
+                Icons.close_rounded,
+                color: AppColors.text2,
+                size: 18,
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }

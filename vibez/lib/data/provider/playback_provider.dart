@@ -521,7 +521,10 @@ class PlaybackProvider extends Notifier<PlaybackState> {
       currentlyPlaying: source,
       clearCurrentlyPlaying: source == null,
     );
-    if (source != null && source.type != PlayingSourceType.song) {
+    if (source != null &&
+        source.type != PlayingSourceType.song &&
+        source.sourceId != 'downloads' &&
+        source.sourceId != 'history') {
       _addRecentItem(
         RecentItem(
           id: source.sourceId,
@@ -679,6 +682,10 @@ class PlaybackProvider extends Notifier<PlaybackState> {
   }
 
   void _addToRecentlyPlayed(Song song, SharedPreferences prefs) {
+    if (state.currentlyPlaying?.sourceId == 'downloads' ||
+        state.currentlyPlaying?.sourceId == 'history') {
+      return;
+    }
     final updated = [
       song,
       ...state.recentlyPlayed.where((s) => s.id != song.id),

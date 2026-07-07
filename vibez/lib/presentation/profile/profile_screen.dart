@@ -261,7 +261,7 @@ class ProfileScreen extends ConsumerWidget {
 
                       const SizedBox(height: AppSpacing.s6),
 
-                      if (profile.tags != null && profile.tags!.isNotEmpty)
+                      if (profile.tags != null && profile.tags!.isNotEmpty) ...[
                         Column(
                           crossAxisAlignment: .start,
                           children: [
@@ -310,10 +310,45 @@ class ProfileScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
+                        const SizedBox(height: AppSpacing.s6),
+                      ],
+
+                      LibrarySection(profile: profile),
 
                       const SizedBox(height: AppSpacing.s6),
 
-                      LibrarySection(profile: profile),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: QuickAccessTile(
+                              title: "Downloads",
+                              subtitle:
+                                  "${ref.watch(downloadsProvider).songs.length} songs",
+                              icon: Icons.download_done_rounded,
+                              gradient: const [
+                                Color(0xFF10B981),
+                                Color(0xFF0EA5E9),
+                              ],
+                              onTap: () => context.push('/playlist/downloads'),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.s3),
+                          Expanded(
+                            child: QuickAccessTile(
+                              title: "History",
+                              subtitle:
+                                  "${ref.watch(playbackProvider).recentlyPlayed.length} songs",
+                              icon: Icons.history_rounded,
+                              gradient: const [
+                                Color(0xFF6366F1),
+                                Color(0xFF06B6D4),
+                              ],
+                              onTap: () => context.push('/playlist/history'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.s6),
                       const SizedBox(height: 140),
                     ],
                   ),
@@ -451,23 +486,7 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
           type: LibraryItemType.likedSongs,
           onTap: () => context.push('/playlist/liked-songs'),
         ),
-      if (ref.watch(playbackProvider).recentlyPlayed.isNotEmpty)
-        LibraryItem(
-          id: 'history',
-          title: 'History',
-          subtitle:
-              '${ref.watch(playbackProvider).recentlyPlayed.length} songs',
-          type: LibraryItemType.history,
-          onTap: () => context.push('/playlist/history'),
-        ),
-      if (ref.watch(downloadsProvider).songs.isNotEmpty)
-        LibraryItem(
-          id: 'downloads',
-          title: 'Downloads',
-          subtitle: '${ref.watch(downloadsProvider).songs.length} songs',
-          type: LibraryItemType.downloads,
-          onTap: () => context.push('/playlist/downloads'),
-        ),
+
       if (profile.playlists != null)
         ...profile.playlists!.map(
           (p) => LibraryItem(
@@ -816,7 +835,9 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
               ? Icons.download_done_rounded
               : Icons.favorite,
           color: Colors.white,
-          size: size != null ? 48 : 28,
+          size: (isHistory || isDownloads)
+              ? (size != null ? 24 : 18)
+              : (size != null ? 48 : 28),
         ),
       );
     }
@@ -873,6 +894,85 @@ class _LibrarySectionState extends ConsumerState<LibrarySection> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class QuickAccessTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Color> gradient;
+  final VoidCallback onTap;
+
+  const QuickAccessTile({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.gradient,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppRadius.mdBorderRadius,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s4,
+          vertical: AppSpacing.s3,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.cardAlt.withValues(alpha: 0.4),
+          borderRadius: AppRadius.mdBorderRadius,
+          border: Border.all(
+            color: AppColors.surface.withValues(alpha: 0.6),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.s2),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: gradient,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: AppSpacing.s3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.text2,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

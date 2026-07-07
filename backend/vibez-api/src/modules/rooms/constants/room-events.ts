@@ -30,4 +30,7 @@ export const RoomEvents = {
   STATE_UPDATE: 'room:state_update',
   QUEUE_UPDATE: 'room:queue_update',
   ROOMS_UPDATE: 'rooms:update',
+
+  SEND_MESSAGE: 'room:send_message',
+  MESSAGES_SENT: 'room:messages_sent'
 };

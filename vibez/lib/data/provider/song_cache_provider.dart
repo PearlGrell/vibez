@@ -196,7 +196,7 @@ class SongCacheProvider extends Notifier<SongCacheState> {
     return future;
   }
 
-  void onSongChanged(String? songId) {
+  void onSongChanged(String? songId, {bool isDownloadMode = false}) {
     if (songId == null) {
       state = const SongCacheState();
       return;
@@ -224,7 +224,9 @@ class SongCacheProvider extends Notifier<SongCacheState> {
           : LoadState.idle,
     );
 
-    Future.microtask(() => _loadDisplayData(songId));
+    if (!isDownloadMode) {
+      Future.microtask(() => _loadDisplayData(songId));
+    }
   }
 
   Future<void> loadLyrics() async {

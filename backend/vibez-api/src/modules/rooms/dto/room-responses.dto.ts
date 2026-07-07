@@ -63,3 +63,9 @@ export interface SongRequestResponseDto {
   requestedBy: User;
   addedAt: string;
 }
+
+export interface MessageSentDto {
+  roomId: string;
+  message: string;
+  sentBy: User;
+}

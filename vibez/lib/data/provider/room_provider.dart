@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:vibez/core/network/socket_client.dart';
+import 'package:vibez/data/models/message.dart';
 import 'package:vibez/data/models/queue_item.dart';
 import 'package:vibez/data/models/request_item.dart';
 import 'package:vibez/data/models/room.dart';
@@ -35,6 +36,7 @@ class RoomProvider extends ChangeNotifier {
   StreamSubscription? _requestSub;
   StreamSubscription? _connectionSub;
   StreamSubscription? _djRequestsSub;
+  StreamSubscription? _messagesSub;
 
   final StreamController<RequestItem> _songRequestedController =
       StreamController<RequestItem>.broadcast();
@@ -54,6 +56,7 @@ class RoomProvider extends ChangeNotifier {
   List<RequestItem> requestItems = [];
   List<User> djRequests = [];
   List<Song> recommendations = [];
+  List<Message> messages = [];
   bool isInRoom = false;
   Object? error;
 
@@ -156,6 +159,13 @@ class RoomProvider extends ChangeNotifier {
         notifyListeners();
       });
 
+      _messagesSub = _socket.stream('room:messages_sent').listen((data) async {
+        final message = Message.fromJson(data);
+        if (roomId != message.roomId) return;
+        messages.add(message);
+        notifyListeners();
+      });
+
       _connectionSub = _socket.connectionStream().listen((connected) {
         if (connected && isInRoom) {
           _rejoinRoom();
@@ -237,6 +247,13 @@ class RoomProvider extends ChangeNotifier {
     await _socket.emitWithAck('room:song_changed', {
       'roomId': roomId,
       'songId': songId,
+    });
+  }
+
+  Future<void> sendMessage(String message) async {
+    await _socket.emitWithAck('room:send_message', {
+      'roomId': roomId,
+      'message': message,
     });
   }
 
@@ -403,6 +420,7 @@ class RoomProvider extends ChangeNotifier {
     _requestSub?.cancel();
     _djRequestsSub?.cancel();
     _connectionSub?.cancel();
+    _messagesSub?.cancel();
     _songRequestedController.close();
     _djRequestedController.close();
     super.dispose();

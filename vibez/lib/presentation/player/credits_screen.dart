@@ -21,7 +21,11 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(songCacheProvider.notifier).loadCredits();
+      final queue = ref.read(playbackProvider);
+      final isDownloadMode = queue.currentlyPlaying?.sourceId == 'downloads';
+      if (!isDownloadMode) {
+        ref.read(songCacheProvider.notifier).loadCredits();
+      }
     });
   }
 

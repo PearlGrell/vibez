@@ -280,12 +280,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final queue = ref.watch(playbackProvider);
+    final isDownloadMode = queue.currentlyPlaying?.sourceId == 'downloads';
 
     ref.listen<PlaybackState>(playbackProvider, (prev, next) {
       if (prev?.currentSong?.id != next.currentSong?.id) {
         ref
             .read(songCacheProvider.notifier)
-            .onSongChanged(next.currentSong?.id);
+            .onSongChanged(
+              next.currentSong?.id,
+              isDownloadMode: next.currentlyPlaying?.sourceId == 'downloads',
+            );
 
         if (_pageController.hasClients) {
           _isAnimating = true;
@@ -309,7 +313,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       Future.microtask(() {
         ref
             .read(songCacheProvider.notifier)
-            .onSongChanged(queue.currentSong!.id);
+            .onSongChanged(
+              queue.currentSong!.id,
+              isDownloadMode: queue.currentlyPlaying?.sourceId == 'downloads',
+            );
       });
     }
 
@@ -860,62 +867,65 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          InkWell(
-                            onTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                useRootNavigator: true,
-                                isDismissible: true,
-                                enableDrag: true,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (context) {
-                                  return ClipRRect(
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(AppRadius.lg),
-                                      topRight: Radius.circular(AppRadius.lg),
+                          if (isDownloadMode)
+                            const SizedBox.shrink()
+                          else
+                            InkWell(
+                              onTap: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  useRootNavigator: true,
+                                  isDismissible: true,
+                                  enableDrag: true,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (context) {
+                                    return ClipRRect(
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(AppRadius.lg),
+                                        topRight: Radius.circular(AppRadius.lg),
+                                      ),
+                                      child: const LyricsScreen(),
+                                    );
+                                  },
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: AppColors.hairlineLight,
+                                    width: 1.0,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.mic_none_rounded,
+                                      color: Colors.white,
+                                      size: 16,
                                     ),
-                                    child: const LyricsScreen(),
-                                  );
-                                },
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: AppColors.hairlineLight,
-                                  width: 1.0,
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      "Lyrics",
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.mic_none_rounded,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    "Lyrics",
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium
-                                        ?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                ],
-                              ),
                             ),
-                          ),
 
                           Padding(
                             padding: EdgeInsetsGeometry.symmetric(vertical: 10),
@@ -934,36 +944,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     size: 20,
                                   ),
                                 ),
-                                GestureDetector(
-                                  onTap: () {
-                                    showModalBottomSheet(
-                                      context: context,
-                                      useRootNavigator: true,
-                                      isDismissible: true,
-                                      enableDrag: true,
-                                      isScrollControlled: true,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (context) {
-                                        return ClipRRect(
-                                          borderRadius: BorderRadius.only(
-                                            topLeft: Radius.circular(
-                                              AppRadius.lg,
+                                if (!isDownloadMode)
+                                  GestureDetector(
+                                    onTap: () {
+                                      showModalBottomSheet(
+                                        context: context,
+                                        useRootNavigator: true,
+                                        isDismissible: true,
+                                        enableDrag: true,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (context) {
+                                          return ClipRRect(
+                                            borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(
+                                                AppRadius.lg,
+                                              ),
+                                              topRight: Radius.circular(
+                                                AppRadius.lg,
+                                              ),
                                             ),
-                                            topRight: Radius.circular(
-                                              AppRadius.lg,
-                                            ),
-                                          ),
-                                          child: const CreditsScreen(),
-                                        );
-                                      },
-                                    );
-                                  },
-                                  child: const Icon(
-                                    Icons.info_outline,
-                                    color: AppColors.text2,
-                                    size: 20,
+                                            child: const CreditsScreen(),
+                                          );
+                                        },
+                                      );
+                                    },
+                                    child: const Icon(
+                                      Icons.info_outline,
+                                      color: AppColors.text2,
+                                      size: 20,
+                                    ),
                                   ),
-                                ),
                                 GestureDetector(
                                   onTap: () {},
                                   child: const Icon(

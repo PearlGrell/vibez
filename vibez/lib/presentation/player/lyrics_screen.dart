@@ -60,7 +60,11 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(songCacheProvider.notifier).loadLyrics();
+      final queue = ref.read(playbackProvider);
+      final isDownloadMode = queue.currentlyPlaying?.sourceId == 'downloads';
+      if (!isDownloadMode) {
+        ref.read(songCacheProvider.notifier).loadLyrics();
+      }
     });
     _positionSub = PlayerAudioService.vibezHandler.positionStream.listen(
       _onPosition,

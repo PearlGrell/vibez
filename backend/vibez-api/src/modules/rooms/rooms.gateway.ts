@@ -36,7 +36,9 @@ import {
   type QueueItemResponseDto,
   type DjResponseDto,
   type SongRequestResponseDto,
+  MessageSentDto,
 } from './dto/room-responses.dto';
+import { type SendMessageDto, sendMessageSchema } from './dto/send-message-dto';
 import { Room } from './entities/room.entity';
 
 @WebSocketGateway({
@@ -363,7 +365,12 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
   async addSong(@ConnectedSocket() client: Socket, @MessageBody() data: AddSongDto): Promise<QueueItemResponseDto> {
     try {
       await this.ensureDj(data.roomId, client.data.user.sub);
-      const item = await this.roomService.addSongToQueue(data.roomId, data.songId, client.data.user.sub, data.requestedById);
+      const item = await this.roomService.addSongToQueue(
+        data.roomId,
+        data.songId,
+        client.data.user.sub,
+        data.requestedById,
+      );
 
       this.broadcastPlaybackQueue(data.roomId);
       return { item };
@@ -398,7 +405,12 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const song = await this.roomService.getSongById(data.songId);
     const user = await this.roomService.getUserById(client.data.user.sub);
 
-    const payload: SongRequestResponseDto = { roomId: data.roomId, song, requestedBy: user, addedAt: new Date().toISOString() };
+    const payload: SongRequestResponseDto = {
+      roomId: data.roomId,
+      song,
+      requestedBy: user,
+      addedAt: new Date().toISOString(),
+    };
     this.server.to(`room:${data.roomId}`).emit(RoomEvents.SONG_REQUESTED, payload);
     return payload;
   }
@@ -411,7 +423,11 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const room = await this.roomService.stop(data.roomId, client.data.user.sub);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
     this.broadcastRoomSummary(room);
-    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
+    return {
+      room,
+      participants: this.getParticipantCount(room.id),
+      participantsInitials: this.getParticipantInitials(room.id),
+    };
   }
 
   @SubscribeMessage(RoomEvents.SONG_CHANGED)
@@ -421,7 +437,11 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
     this.broadcastPlaybackQueue(data.roomId);
     this.broadcastRoomSummary(room);
-    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
+    return {
+      room,
+      participants: this.getParticipantCount(room.id),
+      participantsInitials: this.getParticipantInitials(room.id),
+    };
   }
 
   // ── DJ management ──
@@ -440,7 +460,11 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const room = await this.roomService.joinAsDj(data.roomId, client.data.user.sub);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
     this.broadcastRoomSummary(room);
-    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
+    return {
+      room,
+      participants: this.getParticipantCount(room.id),
+      participantsInitials: this.getParticipantInitials(room.id),
+    };
   }
 
   @SubscribeMessage(RoomEvents.LEAVE_DJ)
@@ -451,7 +475,11 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const updated = await this.roomService.autoAssignDj(data.roomId, participantIds, client.data.user.sub);
     this.broadcastStateUpdate(`room:${data.roomId}`, updated);
     this.broadcastRoomSummary(updated);
-    return { room: updated, participants: this.getParticipantCount(updated.id), participantsInitials: this.getParticipantInitials(updated.id) };
+    return {
+      room: updated,
+      participants: this.getParticipantCount(updated.id),
+      participantsInitials: this.getParticipantInitials(updated.id),
+    };
   }
 
   @SubscribeMessage(RoomEvents.ASSIGN_DJ)
@@ -460,6 +488,26 @@ export class RoomsGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
     const room = await this.roomService.assignDj(data.roomId, client.data.user.sub, data.userId);
     this.broadcastStateUpdate(`room:${data.roomId}`, room);
     this.broadcastRoomSummary(room);
-    return { room, participants: this.getParticipantCount(room.id), participantsInitials: this.getParticipantInitials(room.id) };
+    return {
+      room,
+      participants: this.getParticipantCount(room.id),
+      participantsInitials: this.getParticipantInitials(room.id),
+    };
+  }
+
+  @SubscribeMessage(RoomEvents.SEND_MESSAGE)
+  @UsePipes(new ZodPipe(sendMessageSchema))
+  async sendMessage(@ConnectedSocket() client: Socket, @MessageBody() data: SendMessageDto): Promise<MessageSentDto> {
+    const user = await this.roomService.getUserById(client.data.user.sub);
+
+    const payload: MessageSentDto = {
+      roomId: data.roomId,
+      message: data.message,
+      sentBy: user,
+    };
+
+    this.server.to(`room:${payload.roomId}`).emit(RoomEvents.MESSAGES_SENT, payload);
+
+    return payload;
   }
 }
