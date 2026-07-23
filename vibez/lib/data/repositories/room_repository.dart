@@ -33,6 +33,22 @@ class RoomRepository {
     _roomCache.remove(id);
   }
 
+  Future<List<Room>> getRooms({int limit = 20, String sort = 'newest'}) async {
+    try {
+      final res = await _roomService.getRooms(limit: limit, sort: sort);
+      final rooms = (res['rooms'] as List?) ?? [];
+      return rooms
+          .map((e) => Room.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } catch (err) {
+      if (err is DioException) {
+        String errorMessage = DioExceptionHandler.getMessage(err);
+        AppSnackbar.show(message: errorMessage, type: AppSnackType.error);
+      }
+      return [];
+    }
+  }
+
   Future<List<Room>> getMyRooms() async {
     try {
       final res = await _roomService.getMyRooms();

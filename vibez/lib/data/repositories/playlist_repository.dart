@@ -33,6 +33,21 @@ class PlaylistRepository {
     _playlistCache.remove(id);
   }
 
+  Future<List<Playlist>> getPlaylists({int limit = 20}) async {
+    try {
+      final res = await _playlistService.getPlaylists(limit: limit);
+      return res
+          .map((e) => Playlist.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } catch (err) {
+      if (err is DioException) {
+        String errorMessage = DioExceptionHandler.getMessage(err);
+        AppSnackbar.show(message: errorMessage, type: AppSnackType.error);
+      }
+      return [];
+    }
+  }
+
   Future<Playlist?> createPlaylist({
     required String name,
     required bool private,

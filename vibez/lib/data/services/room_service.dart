@@ -12,6 +12,22 @@ class RoomService {
     return await _apiClient.get(endpoint: '/rooms/$id', secure: true);
   }
 
+  Future<Map<String, dynamic>> getRooms({
+    int? limit,
+    int? page,
+    String? sort,
+  }) async {
+    return await _apiClient.get(
+      endpoint: '/rooms',
+      queries: {
+        'limit': ?limit,
+        'page': ?page,
+        'sort': ?sort,
+      },
+      secure: true,
+    );
+  }
+
   Future<List<dynamic>> getMyRooms() async {
     return await _apiClient.get(endpoint: '/rooms/me', secure: true);
   }

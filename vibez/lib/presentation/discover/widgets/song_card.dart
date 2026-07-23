@@ -1,0 +1,118 @@
+import 'package:flutter/material.dart';
+import 'package:vibez/core/theme/colors.dart';
+import 'package:vibez/core/theme/radius.dart';
+import 'package:vibez/core/theme/spacing.dart';
+import 'package:vibez/core/utils/image_cache_size.dart';
+import 'package:vibez/data/models/song.dart';
+import 'package:vibez/presentation/common/album_art_cover.dart';
+
+class SongCard extends StatelessWidget {
+  final Song song;
+  final bool isPlaying;
+  final VoidCallback onTap;
+  final double width;
+
+  const SongCard({
+    super.key,
+    required this.song,
+    required this.onTap,
+    this.isPlaying = false,
+    this.width = 150,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final thumb = song.thumbnail;
+    final artists = song.artists?.map((a) => a.name).join(', ');
+    final subtitle = (artists != null && artists.isNotEmpty) ? artists : 'Song';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: width,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: isPlaying ? AppColors.primary : Colors.transparent,
+                    width: isPlaying ? 2 : 0,
+                  ),
+                  borderRadius: AppRadius.mdBorderRadius,
+                ),
+                child: ClipRRect(
+                  borderRadius: AppRadius.mdBorderRadius,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      AlbumArtCover(
+                        seed: song.title,
+                        size: width,
+                        radius: AppRadius.md,
+                        child: thumb != null && thumb.isNotEmpty
+                            ? Image.network(
+                                thumb,
+                                cacheWidth: thumbCacheWidth(context, width),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    const SizedBox.shrink(),
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 6,
+                        right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: isPlaying
+                                ? AppColors.primary
+                                : AppColors.background.withValues(alpha: 0.7),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            isPlaying
+                                ? Icons.graphic_eq_rounded
+                                : Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s2),
+            Text(
+              song.title,
+              style: TextStyle(
+                color: isPlaying ? AppColors.primary : Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                height: 1.2,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: AppColors.text2,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

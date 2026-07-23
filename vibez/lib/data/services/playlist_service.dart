@@ -12,6 +12,14 @@ class PlaylistService {
     return await _apiClient.get(endpoint: '/users/playlists/$id', secure: true);
   }
 
+  Future<List<dynamic>> getPlaylists({int? limit}) async {
+    return await _apiClient.get(
+      endpoint: '/users/playlists',
+      queries: {'limit': ?limit},
+      secure: true,
+    );
+  }
+
   Future<Map<String, dynamic>> createPlaylist({
     required String name,
     required bool private,
